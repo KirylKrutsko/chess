@@ -6,7 +6,7 @@
 
 struct GameBoard
 {
-    std::array<pieceType, 64> whitePieceArray{EMPTY};
+    std::array<pieceType, 64> whitePieceArray{ EMPTY };
     std::array<pieceType, 64> blackPieceArray{ EMPTY };
     Bitboard whites[6], blacks[6];
     Bitboard occupied, blackPieces, whitePieces;
@@ -20,7 +20,7 @@ struct GameBoard
     Bitboard whiteKingRookMoves, whiteKingBishopMoves, blackKingRookMoves, blackKingBishopMoves;
     std::vector<uint64_t> positionHistory;
     GameBoard();
-    GameBoard(const std::string& fen);
+    bool setFromFen(const std::string& fen);
 
     Bitboard wpPushes();
     Bitboard wpDoublePushes();
@@ -90,6 +90,9 @@ struct GameBoard
     Bitboard bDiscoveredFrom(unsigned long moved);
 
     // mask is a block check bath, or all squares if not in check
+    std::vector<Move> generateWhitePromotions(Bitboard mask);
+    std::vector<Move> generateBlackPromotions(Bitboard mask);
+
     std::vector<Move> generateWhiteMoves(Bitboard mask);
     std::vector<Move> generateBlackMoves(Bitboard mask);
 
@@ -105,12 +108,14 @@ struct GameBoard
     void doMove(Move& m);
     void undoMove(Move& m);
 
-    bool isDrawByRepetition();
+    bool isRepetition();
 
     long perft(int depth);
 
+    std::string notation_from_index(unsigned long index);
     void printBoard();
     uint64_t computeZobristKey() const;
+    uint64_t reserveKey() const;
 
 };
 

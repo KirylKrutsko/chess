@@ -1,13 +1,14 @@
 #pragma once
-#include<iostream>
+#include <iostream>
 #include "Header.h"
 #include "Move.h"
 
 struct TTEntry {
     TTEntry();
     uint64_t key;
-    uint8_t depth;
-    int16_t eval;
+    int depth;
+    int eval;
     EntryType type;
     Move bestMove;
 };
+

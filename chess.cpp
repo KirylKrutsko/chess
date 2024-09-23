@@ -3,9 +3,12 @@
 #include <array>
 #include <vector>
 #include <random>
+#include <fstream>
+#include <string>
 #include "GameBoard.h"
 #include "Tables.h"
 #include "Engine.h"
+#include "AgedTT.h"
 
 bool equal(GameBoard& b1, GameBoard& b2) {
     for (int i = 0; i < 64; i++) {
@@ -233,6 +236,10 @@ Bitboard randomBishopBlockerSet(int r, int c) {
     return blocks;
 }
 
+void runMatchup(Engine& engine1, Engine& engine2) {
+
+}
+
 int main()
 {
     MagicSetup();
@@ -287,10 +294,69 @@ int main()
         out(BlockCkeckPath[king][check]);
     }*/
 
-    GameBoard board = GameBoard();
-    Engine engine(board);
-    engine.timer.timeLimit = 20;
-    engine.start();
+
+    for (int testNum = 0; testNum < 1; testNum++) {
+        std::cout << "<----------------------------------->\n" << testNum << " match started\n";
+        GameBoard board1 = GameBoard();
+        GameBoard board2 = GameBoard();
+        Engine engine1(board1);
+        Engine engine2(board2);
+        std::ifstream fin;
+        fin.open("silver_op_suite.txt");
+        std::string fen;
+        std::getline(fin, fen);
+        engine1.board.setFromFen(fen);
+        engine2.board.setFromFen(fen);
+        engine2.TT = new AgedTT();
+        Bitboard nodes1, nodes2, ttHit1, ttHit2;
+        nodes1 = nodes2 = ttHit1 = ttHit2 = 0;
+        double time1, time2;
+        time1 = time2 = 0;
+        SearchResult result;
+        bool isFirstTurn = true;
+        std::ofstream fout;
+        std::string fileName = "match";
+        fileName += std::to_string(testNum);
+        fileName += ".txt";
+        fout.open(fileName);
+        bool draw = false;
+        while (true) {
+            Engine& active = isFirstTurn ? engine1 : engine2;
+            result = active.iterativeDeepening(5, false);
+            if (isFirstTurn) {
+                nodes1 += result.nodesSearched;
+                ttHit1 += result.ttHit;
+                time1 += result.runtime;
+            }
+            else {
+                nodes2 += result.nodesSearched;
+                ttHit2 += result.ttHit;
+                time2 += result.runtime;
+            }
+            if (engine1.isDrawByIM() || engine1.board.isRepetition() || engine1.board.ply50MoveRule >= 100) {
+                draw = true;
+                break;
+            }
+            else if (result.bestLine.empty()) break;
+            Move move = result.bestLine[result.bestLine.size() - 1];
+            std::cout << result.nodesSearched << std::endl << result.ttHit << std::endl << result.eval << std::endl << result.runtime << std::endl << notation_from_move(move) << std::endl;
+            fout << notation_from_move(move) << std::endl;
+            engine1.board.doMove(move);
+            engine2.board.doMove(move);
+            isFirstTurn = !isFirstTurn;
+        }
+        fout << "depth TT : \n" << nodes1 << "\n" << ttHit1 << "\n" << time1 << "\n" << (double)ttHit1 / nodes1;
+        fout << "\nage TT : \n" << nodes2 << "\n" << ttHit2 << "\n" << time2 << "\n" << (double)ttHit2 / nodes2 << "\n";
+        if(draw) fout << "draw\n\n";
+        else if (engine1.board.checksFrom) {
+            std::string won = engine1.board.turn ? "black" : "white";
+            fout << won << " won\n\n";
+        }
+        else fout << "draw\n\n";
+        fout.close();
+        delete engine1.TT;
+        delete engine2.TT;
+    }
 
     return 0;
 }

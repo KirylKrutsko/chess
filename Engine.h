@@ -2,6 +2,8 @@
 #include "GameBoard.h"
 #include "Move.h"
 #include "Timer.h"
+#include "SearchResult.h"
+#include "TranspositionTable.h"
 
 constexpr std::array<std::array<int, 64>, 7> bStartRewards = {
     {
@@ -124,9 +126,9 @@ constexpr std::array<std::array<int, 64>, 7> bEndRewards = {
             -10,  0,  0,  0,  0,  0,  0,-10,
             -10,  0,  5,  5,  5,  5,  0,-10,
             -5,   0,  5,  5,  5,  5,  0, -5,
-            0,    0,  5,  5,  5,  5,  0, -5,
-            -10,  5,  5,  5,  5,  5,  0,-10,
-            -10,  0,  5,  0,  0,  0,  0,-10,
+            -5,   0,  5,  5,  5,  5,  0, -5,
+            -10,  0,  5,  5,  5,  5,  0,-10,
+            -10,  0,  0,  0,  0,  0,  0,-10,
             -20,-10,-10, -5, -5,-10,-10,-20
         },
         {
@@ -269,9 +271,9 @@ constexpr std::array<std::array<int, 64>, 7> wEndRewards = {
         },
         {
                 -20,    -10,    -10,    -5,     -5,     -10,    -10,    -20,
-                -10,    0,      5,      0,      0,      0,      0,      -10,
-                -10,    5,      5,      5,      5,      5,      0,      -10,
-                0,      0,      5,      5,      5,      5,      0,      -5,
+                -10,    0,      0,      0,      0,      0,      0,      -10,
+                -10,    0,      5,      5,      5,      5,      0,      -10,
+                -5,     0,      5,      5,      5,      5,      0,      -5,
                 -5,     0,      5,      5,      5,      5,      0,      -5,
                 -10,    0,      5,      5,      5,      5,      0,      -10,
                 -10,    0,      0,      0,      0,      0,      0,      -10,
@@ -312,17 +314,23 @@ struct Engine
 	Engine(GameBoard& b);
 	GameBoard board;
     Timer timer;
-    int maxDepth;
-	int search(int depth, int alpha, int beta, long& nodesOnDepth, long& movesOnDepth, int& positionOnDepth);
-    int quienscenceSearch(int alpha, int beta, long& nodes);
-	Move iterativeDeepening();
-    Move bestOnDepth(std::vector<Move>& moves, uint64_t key, int depth, int& eval, long& nodesOnDepth, long& movesOnDepth, int& positionOnDepth);
+    int maxDepthDefault;
+    TranspositionTable* TT;
+    bool ttMode; // if false - disallows TT access. used to prevent 3 fold repetition and 50 move rule draws
+    std::vector<Move> history;
+    void updateTTmode();
+    SearchResult search(int depth, int alpha, int beta, long& nodesOnDepth, long& movesOnDepth, int& positionOnDepth, long& ttHit);
+    SearchResult searchWithoutTT(int depth, int alpha, int beta);
+    SearchResult quiescenceSearch(int alpha, int beta);
+    //SearchResult bestOnDepth(std::vector<Move>& moves, uint64_t key, int depth, long& nodesOnDepth, long& movesOnDepth, int& positionOnDepth);
+    SearchResult iterativeDeepening(int maxDepth, bool useTimer);
 	int evaluate();
 	int calcWhiteScore();
 	int calcBlackScore();
 	int calcWhiteAwards(float coeff);
 	int calcBlackAwards(float coeff);
 	float calcEndgameCoeff();
+    int activeKingAward(float coeff); 
 	void orderMoves(std::vector<Move>& moves, uint64_t positionKey);
 	void start();
     const int checkmateScore = 30000;
@@ -334,8 +342,9 @@ struct Engine
     void xperft(int depth);
 
     void endGame();
+    bool isDrawByIM();
 
-    void showBestLine();
+    void showBestLine(std::vector<Move> line);
 
     unsigned long index_from_notation(std::string str);
     std::string notation_from_index(unsigned long index);

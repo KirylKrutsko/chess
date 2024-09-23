@@ -2,12 +2,146 @@
 #include<iostream>
 #include<array>
 #include<vector>
+#include<sstream>
+#include<algorithm>
 #include "GameBoard.h"
 #include "Move.h"
 #include "Tables.h"
 
-    GameBoard::GameBoard() : GameBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {}
-    GameBoard::GameBoard(const std::string& FEN) {
+    GameBoard::GameBoard() {
+        setFromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    }
+
+    bool GameBoard::setFromFen(const std::string& FEN) {
+        if (FEN.find("startpos") == 0) {
+            return setFromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        }
+        std::istringstream fenStream(FEN);
+        std::string piecePlacement, activeColor, castlingRights, enPassant, halfmoveClock, fullmoveNumber;
+        if (!(fenStream >> piecePlacement >> activeColor >> castlingRights >> enPassant >> halfmoveClock >> fullmoveNumber)) {
+            return false; 
+        }
+
+        int row = 7, col = 0;
+        for (char ch : piecePlacement) {
+            if (ch == '/') {
+                if (col != 8) return false; 
+                col = 0;
+                row--;
+                if (row < 0) return false;
+            }
+            else if (isdigit(ch)) {
+                col += ch - '0'; 
+                if (col > 8) return false; 
+            }
+            else if (strchr("PNBRQKpnbrqk", ch)) {
+                col++; 
+                if (col > 8) return false; 
+            }
+            else {
+                return false; 
+            }
+        }
+        if (row != 0 || col != 8) return false; 
+
+        if (activeColor != "w" && activeColor != "b") return false;
+        if (castlingRights != "-" && castlingRights.find_first_not_of("KQkq") != std::string::npos) return false;
+        if (enPassant != "-" && (enPassant.size() != 2 || enPassant[0] < 'a' || enPassant[0] > 'h' || enPassant[1] < '1' || enPassant[1] > '6')) {
+            return false;
+        }
+
+        if (!std::all_of(halfmoveClock.begin(), halfmoveClock.end(), ::isdigit)) return false;
+        if (!std::all_of(fullmoveNumber.begin(), fullmoveNumber.end(), ::isdigit) || std::stoi(fullmoveNumber) <= 0) {
+            return false;
+        }
+
+        // validation pass, reset the position
+        whites[PAWN] = whites[KNIGHT] = whites[BISHOP] = whites[ROOK] = whites[QUEEN] = whites[KING] =
+            blacks[PAWN] = blacks[KNIGHT] = blacks[BISHOP] = blacks[ROOK] = blacks[QUEEN] = blacks[KING] =
+            whitePieces = blackPieces = occupied = 0;
+        for (int i = 0; i < 64; i++) {
+            whitePieceArray[i] = EMPTY;
+            blackPieceArray[i] = EMPTY;
+        }
+        turn = true; 
+        wOO = wOOO = bOO = bOOO = false; 
+        enPassantTarget = 0x0ULL; 
+        ply50MoveRule = 0; 
+        plyCount = 1; 
+
+        // actually process the fen 
+        row = 7;
+        col = 0;
+        for (int index = 0; index < piecePlacement.size(); index++) {
+            if (piecePlacement[index] == '/') {
+                col = 0; row--;
+            }
+            else if (isdigit(piecePlacement[index])) {
+                col += piecePlacement[index] - '0';
+            }
+            else {
+                Bitboard bb = bit << (col + row * 8);
+                switch (piecePlacement[index]) {
+                case 'P': whitePieceArray[row * 8 + col] = PAWN; whites[PAWN] |= bb; break;
+                case 'N': whitePieceArray[row * 8 + col] = KNIGHT; whites[KNIGHT] |= bb; break;
+                case 'B': whitePieceArray[row * 8 + col] = BISHOP; whites[BISHOP] |= bb; break;
+                case 'R': whitePieceArray[row * 8 + col] = ROOK; whites[ROOK] |= bb; break;
+                case 'Q': whitePieceArray[row * 8 + col] = QUEEN; whites[QUEEN] |= bb; break;
+                case 'K': whitePieceArray[row * 8 + col] = KING; whites[KING] |= bb; wKingPos = row * 8 + col; break;
+                case 'p': blackPieceArray[row * 8 + col] = PAWN; blacks[PAWN] |= bb; break;
+                case 'n': blackPieceArray[row * 8 + col] = KNIGHT; blacks[KNIGHT] |= bb; break;
+                case 'b': blackPieceArray[row * 8 + col] = BISHOP; blacks[BISHOP] |= bb; break;
+                case 'r': blackPieceArray[row * 8 + col] = ROOK; blacks[ROOK] |= bb; break;
+                case 'q': blackPieceArray[row * 8 + col] = QUEEN; blacks[QUEEN] |= bb; break;
+                case 'k': blackPieceArray[row * 8 + col] = KING; blacks[KING] |= bb; bKingPos = row * 8 + col; break;
+                default: break;
+                }
+                col++;
+            }
+        }
+        whitePieces = whites[PAWN] | whites[KNIGHT] | whites[BISHOP] | whites[ROOK] | whites[QUEEN] | whites[KING];
+        blackPieces = blacks[PAWN] | blacks[KNIGHT] | blacks[BISHOP] | blacks[ROOK] | blacks[QUEEN] | blacks[KING];
+        occupied = whitePieces | blackPieces;
+
+        turn = (activeColor == "w");
+        wOO = castlingRights.find('K') != std::string::npos;
+        wOOO = castlingRights.find('Q') != std::string::npos;
+        bOO = castlingRights.find('k') != std::string::npos;
+        bOOO = castlingRights.find('q') != std::string::npos;
+
+        if (enPassant != "-") {
+            int file = enPassant[0] - 'a';
+            int rank = enPassant[1] - '1';
+            enPassantTarget = 1ULL << (rank * 8 + file);
+        }
+        else {
+            enPassantTarget = 0x0ULL;
+        }
+
+        ply50MoveRule = std::stoi(halfmoveClock);
+        plyCount = (std::stoi(fullmoveNumber) - 1) * 2 + (turn ? 0 : 1);
+
+        unsigned long lsb;
+        if (turn) {
+            Bitboard rqChecks = RookMagicBitboards[wKingPos][((occupied & RawRookAttacks[wKingPos]) * RookMagics[wKingPos] >> RookShifts[wKingPos])] & (blacks[ROOK] | blacks[QUEEN]);
+            Bitboard bqChecks = BishopMagicBitboards[wKingPos][((occupied & RawBishopAttacks[wKingPos]) * BishopMagics[wKingPos] >> BishopShifts[wKingPos])] & (blacks[BISHOP] | blacks[QUEEN]);
+            Bitboard kChecks = KnightBitboards[wKingPos] & blacks[KNIGHT];
+            Bitboard pChecks = (((whites[KING] << 7) & not_hFile) | ((whites[KING] << 9) & not_aFile)) & blacks[PAWN];
+            checksFrom = rqChecks | bqChecks | kChecks | pChecks;
+        }
+        else {
+            Bitboard rqChecks = RookMagicBitboards[bKingPos][((occupied & RawRookAttacks[bKingPos]) * RookMagics[bKingPos] >> RookShifts[bKingPos])] & (whites[ROOK] | whites[QUEEN]);
+            Bitboard bqChecks = BishopMagicBitboards[bKingPos][((occupied & RawBishopAttacks[bKingPos]) * BishopMagics[bKingPos] >> BishopShifts[bKingPos])] & (whites[BISHOP] | whites[QUEEN]);
+            Bitboard kChecks = KnightBitboards[bKingPos] & whites[KNIGHT];
+            Bitboard pChecks = (((blacks[KING] >> 7) & not_aFile) | ((blacks[KING] >> 9) & not_hFile)) & whites[PAWN];
+            checksFrom = rqChecks | bqChecks | kChecks | pChecks;
+        }
+        positionHistory.push_back(computeZobristKey());
+
+        return true; 
+    }
+
+    /*GameBoard::GameBoard(const std::string& FEN) {
         int wKingPos, bKingPos;
         whites[PAWN] = whites[KNIGHT] = whites[BISHOP] = whites[ROOK] = whites[QUEEN] = whites[KING] = blacks[PAWN] = blacks[KNIGHT] = blacks[BISHOP] = blacks[ROOK] = blacks[QUEEN] = blacks[KING] = whitePieces = blackPieces = occupied = 0;
         for (int i = 0; i < 64; i++) {
@@ -163,7 +297,7 @@
             checksFrom = rqChecks | bqChecks | kChecks | pChecks;
         }
         positionHistory.push_back(computeZobristKey());
-    }
+    }*/
 
     Bitboard GameBoard::wpPushes() {
         return ((whites[PAWN] & not_sevenRank) << 8) & ~occupied;
@@ -277,9 +411,10 @@
             & ~checksFrom;
     }
 
-    // mask is a block check bath, or all squares if not in check
     void GameBoard::printBoard() {
+        std::cout << "\n";
         for (int r = 7; r >= 0; r--) {
+            std::cout << r + 1 << "\t";
             for (int c = 0; c < 8; c++) {
                 if (whitePieceArray[r * 8 + c] != EMPTY) {
                     switch (whitePieceArray[r * 8 + c])
@@ -312,18 +447,41 @@
                 if (whitePieceArray[r * 8 + c] == EMPTY && blackPieceArray[r * 8 + c] == EMPTY) {
                     std::cout << ".";
                 }
-                std::cout << "  ";
+                std::cout << "   ";
             }
-            std::cout << std::endl;
+            std::cout << "\n\n";
         }
-        std::cout << std::endl << std::endl;
+        std::cout << "\n\ta   b   c   d   e   f   g   h\n";
+        if (checksFrom) {
+            std::cout << "Checkers :";
+            Bitboard checks = checksFrom;
+            unsigned long lsb;
+            while (checks) {
+                _BitScanForward64(&lsb, checks);
+                checks &= checks - 1;
+                std::cout << " " << notation_from_index(lsb);
+            }
+            std::cout << "\n";
+        }
+        std::string move = turn ? "White to move" : "Black to move";
+        std::cout << move << std::endl;
     }
 
     uint64_t GameBoard::computeZobristKey() const {
-        uint64_t key = (bit << plyCount) ^ (bit << ply50MoveRule);
+        uint64_t key = 0;
         for (int i = 0; i < 64; ++i) {
-            key ^= zobristTable[whitePieceArray[i]][i];
-            key ^= zobristTable[blackPieceArray[i] + 6][i];
+            key ^= zobristTable[0][whitePieceArray[i]][i];
+            key ^= zobristTable[0][blackPieceArray[i] + 7][i];
+        }
+        if (turn) key ^= zobristTurn;
+        return key;
+    }
+
+    uint64_t GameBoard::reserveKey() const {
+        uint64_t key = 0;
+        for (int i = 0; i < 64; ++i) {
+            key ^= zobristTable[1][whitePieceArray[i]][i];
+            key ^= zobristTable[1][blackPieceArray[i] + 7][i];
         }
         if (turn) key ^= zobristTurn;
         return key;
@@ -384,14 +542,13 @@
         return attacks;
     }
 
-    std::vector<Move> GameBoard::generateWhiteMoves(Bitboard mask) {
+    // mask is a block check bath, or all squares if not in check
+    std::vector<Move> GameBoard::generateWhitePromotions(Bitboard mask) {
         unsigned long lsb;
         std::vector<Move> moves;
         Bitboard simpleCheck;
         Bitboard discoveredCheck;
-        Bitboard currentMoves, currentPieces;
-        Bitboard blockers;
-        unsigned long pieceIndex;
+        Bitboard currentMoves;
 
         currentMoves = wpRightPromotions() & mask;
         while (currentMoves) {
@@ -464,6 +621,98 @@
             occupied |= bit << (lsb - 8);
             currentMoves &= currentMoves - 1;
         }
+
+        return moves;
+    }
+    std::vector<Move> GameBoard::generateBlackPromotions(Bitboard mask) {
+        unsigned long lsb;
+        std::vector<Move> moves;
+        Bitboard discoveredCheck;
+        Bitboard simpleCheck;
+        Bitboard currentMoves;
+
+        currentMoves = bpRightPromotions() & mask;
+        while (currentMoves) {
+            _BitScanForward64(&lsb, currentMoves);
+            occupied &= ~(bit << (lsb + 9));
+            if (!(bDiscoveredFrom(lsb + 9) & ~(bit << lsb))) {
+                discoveredCheck = wDiscoveredFrom(lsb + 9);
+
+                simpleCheck = ((BishopMagicBitboards[wKingPos][(occupied & RawBishopAttacks[wKingPos]) * BishopMagics[wKingPos] >> BishopShifts[wKingPos]]) | (whiteKingRookMoves)) & (bit << lsb);
+                moves.push_back(Move(lsb, lsb + 9, whitePieceArray[lsb], QUEEN, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
+
+                simpleCheck = ((whiteKingRookMoves) & (bit << lsb));
+                moves.push_back(Move(lsb, lsb + 9, whitePieceArray[lsb], ROOK, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
+
+                simpleCheck = (BishopMagicBitboards[wKingPos][(occupied & RawBishopAttacks[wKingPos]) * BishopMagics[wKingPos] >> BishopShifts[wKingPos]]) & (bit << lsb);
+                moves.push_back(Move(lsb, lsb + 9, whitePieceArray[lsb], BISHOP, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
+
+                simpleCheck = KnightBitboards[wKingPos] & (bit << lsb);
+                moves.push_back(Move(lsb, lsb + 9, whitePieceArray[lsb], KNIGHT, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
+            }
+            occupied |= bit << (lsb + 9);
+            currentMoves &= currentMoves - 1;
+        }
+
+        currentMoves = bpLeftPromotions() & mask;
+        while (currentMoves) {
+            _BitScanForward64(&lsb, currentMoves);
+            occupied &= ~(bit << (lsb + 7));
+            if (!(bDiscoveredFrom(lsb + 7) & ~(bit << lsb))) {
+                discoveredCheck = wDiscoveredFrom(lsb + 7);
+
+                simpleCheck = ((BishopMagicBitboards[wKingPos][(occupied & RawBishopAttacks[wKingPos]) * BishopMagics[wKingPos] >> BishopShifts[wKingPos]]) | (whiteKingRookMoves)) & (bit << lsb);
+                moves.push_back(Move(lsb, lsb + 7, whitePieceArray[lsb], QUEEN, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
+
+                simpleCheck = ((whiteKingRookMoves) & (bit << lsb));
+                moves.push_back(Move(lsb, lsb + 7, whitePieceArray[lsb], ROOK, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
+
+                simpleCheck = (BishopMagicBitboards[wKingPos][(occupied & RawBishopAttacks[wKingPos]) * BishopMagics[wKingPos] >> BishopShifts[wKingPos]]) & (bit << lsb);
+                moves.push_back(Move(lsb, lsb + 7, whitePieceArray[lsb], BISHOP, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
+
+                simpleCheck = KnightBitboards[wKingPos] & (bit << lsb);
+                moves.push_back(Move(lsb, lsb + 7, whitePieceArray[lsb], KNIGHT, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
+            }
+            occupied |= bit << (lsb + 7);
+            currentMoves &= currentMoves - 1;
+        }
+
+        currentMoves = bpPromotions() & mask;
+        while (currentMoves) {
+            _BitScanForward64(&lsb, currentMoves);
+            occupied &= ~(bit << (lsb + 8));
+            occupied |= bit << lsb;
+            if (!bDiscoveredFrom(lsb + 8)) {
+                discoveredCheck = wDiscoveredFrom(lsb + 8);
+
+                simpleCheck = ((RookMagicBitboards[wKingPos][(occupied & RawRookAttacks[wKingPos]) * RookMagics[wKingPos] >> RookShifts[wKingPos]]) | (whiteKingBishopMoves)) & (bit << lsb);
+                moves.push_back(Move(lsb, lsb + 8, EMPTY, QUEEN, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
+
+                simpleCheck = ((RookMagicBitboards[wKingPos][(occupied & RawRookAttacks[wKingPos]) * RookMagics[wKingPos] >> RookShifts[wKingPos]]) & (bit << lsb));
+                moves.push_back(Move(lsb, lsb + 8, EMPTY, ROOK, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
+
+                simpleCheck = ((whiteKingBishopMoves) & (bit << lsb));
+                moves.push_back(Move(lsb, lsb + 8, EMPTY, BISHOP, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
+
+                simpleCheck = (KnightBitboards[wKingPos] & (bit << lsb));
+                moves.push_back(Move(lsb, lsb + 8, EMPTY, KNIGHT, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
+            }
+            occupied &= ~(bit << lsb);
+            occupied |= bit << (lsb + 8);
+            currentMoves &= currentMoves - 1;
+        }
+
+        return moves;
+    }
+
+    std::vector<Move> GameBoard::generateWhiteMoves(Bitboard mask) {
+        unsigned long lsb;
+        std::vector<Move> moves;
+        Bitboard simpleCheck;
+        Bitboard discoveredCheck;
+        Bitboard currentMoves, currentPieces;
+        Bitboard blockers;
+        unsigned long pieceIndex;
 
         currentMoves = wpRightCaptures() & mask;
         while (currentMoves) {
@@ -647,77 +896,6 @@
         Bitboard currentMoves, currentPieces;
         Bitboard blockers;
         unsigned long pieceIndex;
-
-        currentMoves = bpRightPromotions() & mask;
-        while (currentMoves) {
-            _BitScanForward64(&lsb, currentMoves);
-            occupied &= ~(bit << (lsb + 9));
-            if (!(bDiscoveredFrom(lsb + 9) & ~(bit << lsb))) {
-                discoveredCheck = wDiscoveredFrom(lsb + 9);
-
-                simpleCheck = ((BishopMagicBitboards[wKingPos][(occupied & RawBishopAttacks[wKingPos]) * BishopMagics[wKingPos] >> BishopShifts[wKingPos]]) | (whiteKingRookMoves)) & (bit << lsb);
-                moves.push_back(Move(lsb, lsb + 9, whitePieceArray[lsb], QUEEN, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
-
-                simpleCheck = ((whiteKingRookMoves) & (bit << lsb));
-                moves.push_back(Move(lsb, lsb + 9, whitePieceArray[lsb], ROOK, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
-
-                simpleCheck = (BishopMagicBitboards[wKingPos][(occupied & RawBishopAttacks[wKingPos]) * BishopMagics[wKingPos] >> BishopShifts[wKingPos]]) & (bit << lsb);
-                moves.push_back(Move(lsb, lsb + 9, whitePieceArray[lsb], BISHOP, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
-
-                simpleCheck = KnightBitboards[wKingPos] & (bit << lsb);
-                moves.push_back(Move(lsb, lsb + 9, whitePieceArray[lsb], KNIGHT, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
-            }
-            occupied |= bit << (lsb + 9);
-            currentMoves &= currentMoves - 1;
-        }
-
-        currentMoves = bpLeftPromotions() & mask;
-        while (currentMoves) {
-            _BitScanForward64(&lsb, currentMoves);
-            occupied &= ~(bit << (lsb + 7));
-            if (!(bDiscoveredFrom(lsb + 7) & ~(bit << lsb))) {
-                discoveredCheck = wDiscoveredFrom(lsb + 7);
-
-                simpleCheck = ((BishopMagicBitboards[wKingPos][(occupied & RawBishopAttacks[wKingPos]) * BishopMagics[wKingPos] >> BishopShifts[wKingPos]]) | (whiteKingRookMoves)) & (bit << lsb);
-                moves.push_back(Move(lsb, lsb + 7, whitePieceArray[lsb], QUEEN, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
-
-                simpleCheck = ((whiteKingRookMoves) & (bit << lsb));
-                moves.push_back(Move(lsb, lsb + 7, whitePieceArray[lsb], ROOK, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
-
-                simpleCheck = (BishopMagicBitboards[wKingPos][(occupied & RawBishopAttacks[wKingPos]) * BishopMagics[wKingPos] >> BishopShifts[wKingPos]]) & (bit << lsb);
-                moves.push_back(Move(lsb, lsb + 7, whitePieceArray[lsb], BISHOP, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
-
-                simpleCheck = KnightBitboards[wKingPos] & (bit << lsb);
-                moves.push_back(Move(lsb, lsb + 7, whitePieceArray[lsb], KNIGHT, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
-            }
-            occupied |= bit << (lsb + 7);
-            currentMoves &= currentMoves - 1;
-        }
-
-        currentMoves = bpPromotions() & mask;
-        while (currentMoves) {
-            _BitScanForward64(&lsb, currentMoves);
-            occupied &= ~(bit << (lsb + 8));
-            occupied |= bit << lsb;
-            if (!bDiscoveredFrom(lsb + 8)) {
-                discoveredCheck = wDiscoveredFrom(lsb + 8);
-
-                simpleCheck = ((RookMagicBitboards[wKingPos][(occupied & RawRookAttacks[wKingPos]) * RookMagics[wKingPos] >> RookShifts[wKingPos]]) | (whiteKingBishopMoves)) & (bit << lsb);
-                moves.push_back(Move(lsb, lsb + 8, EMPTY, QUEEN, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
-
-                simpleCheck = ((RookMagicBitboards[wKingPos][(occupied & RawRookAttacks[wKingPos]) * RookMagics[wKingPos] >> RookShifts[wKingPos]]) & (bit << lsb));
-                moves.push_back(Move(lsb, lsb + 8, EMPTY, ROOK, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
-
-                simpleCheck = ((whiteKingBishopMoves) & (bit << lsb));
-                moves.push_back(Move(lsb, lsb + 8, EMPTY, BISHOP, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
-
-                simpleCheck = (KnightBitboards[wKingPos] & (bit << lsb));
-                moves.push_back(Move(lsb, lsb + 8, EMPTY, KNIGHT, false, false, false, simpleCheck && discoveredCheck, simpleCheck | discoveredCheck));
-            }
-            occupied &= ~(bit << lsb);
-            occupied |= bit << (lsb + 8);
-            currentMoves &= currentMoves - 1;
-        }
 
         currentMoves = bpRightCaptures() & mask;
         while (currentMoves) {
@@ -1031,11 +1209,15 @@
             if (!checksFrom) {
                 currentMoves = generateWhiteMoves(0xFFFFFFFFFFFFFFFFULL);
                 moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
+                currentMoves = generateWhitePromotions(0xFFFFFFFFFFFFFFFFULL);
+                moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
             }
             else if (!inDoubleCheck) {
                 unsigned long lsb;
                 _BitScanForward64(&lsb, checksFrom);
                 currentMoves = generateWhiteMoves(BlockCheckPath[wKingPos][lsb]);
+                moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
+                currentMoves = generateWhitePromotions(BlockCheckPath[wKingPos][lsb]);
                 moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
             }
 
@@ -1053,11 +1235,15 @@
         if (!checksFrom) {
             currentMoves = generateBlackMoves(0xFFFFFFFFFFFFFFFFULL);
             moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
+            currentMoves = generateBlackPromotions(0xFFFFFFFFFFFFFFFFULL);
+            moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
         }
         else if (!inDoubleCheck) {
             unsigned long lsb;
             _BitScanForward64(&lsb, checksFrom);
             currentMoves = generateBlackMoves(BlockCheckPath[bKingPos][lsb]);
+            moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
+            currentMoves = generateBlackPromotions(BlockCheckPath[bKingPos][lsb]);
             moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
         }
 
@@ -1073,6 +1259,8 @@
 
     }
     std::vector<Move> GameBoard::noisyMoves() {
+        if (checksFrom) return allMoves();
+
         std::vector<Move> moves;
         std::vector<Move> currentMoves;
 
@@ -1085,16 +1273,11 @@
         blackKingBishopMoves = BishopMagicBitboards[bKingPos][(occupied & RawBishopAttacks[bKingPos]) * BishopMagics[bKingPos] >> BishopShifts[bKingPos]];
 
         if (turn) {
-            if (!checksFrom) {
-                currentMoves = generateWhiteMoves(0xFFFFFFFFFFFFFFFFULL & blackPieces);
-                moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
-            }
-            else if (!inDoubleCheck) {
-                unsigned long lsb;
-                _BitScanForward64(&lsb, checksFrom);
-                currentMoves = generateWhiteMoves(BlockCheckPath[wKingPos][lsb] & blackPieces);
-                moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
-            }
+            currentMoves = generateWhiteMoves(0xFFFFFFFFFFFFFFFFULL & blackPieces);
+            moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
+
+            currentMoves = generateWhitePromotions(0xFFFFFFFFFFFFFFFFULL);
+            moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
 
             currentMoves = generateWhiteKingMoves(true);
             moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
@@ -1102,17 +1285,11 @@
             return moves;
         }
 
+        currentMoves = generateBlackMoves(0xFFFFFFFFFFFFFFFFULL & whitePieces);
+        moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
 
-        if (!checksFrom) {
-            currentMoves = generateBlackMoves(0xFFFFFFFFFFFFFFFFULL & whitePieces);
-            moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
-        }
-        else if (!inDoubleCheck) {
-            unsigned long lsb;
-            _BitScanForward64(&lsb, checksFrom);
-            currentMoves = generateBlackMoves(BlockCheckPath[bKingPos][lsb] & whitePieces);
-            moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
-        }
+        currentMoves = generateBlackPromotions(0xFFFFFFFFFFFFFFFFULL);
+        moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
 
         currentMoves = generateBlackKingMoves(true);
         moves.insert(moves.end(), currentMoves.begin(), currentMoves.end());
@@ -1430,13 +1607,17 @@
         positionHistory.pop_back();
     }
 
-    bool GameBoard::isDrawByRepetition() {
-        int count = 0;
+    bool GameBoard::isRepetition() {
         uint64_t key = computeZobristKey();
-        for (int i = 0; i < positionHistory.size() && count < 3; i++) {
+        /*int count = 0;
+        for (int i = 0; i < positionHistory.size(); i++) {
             if (positionHistory[i] == key) count++;
         }
-        return (count >= 3);
+        return count - 1;*/
+        for (int i = positionHistory.size() - 3; i >= 0; i-=2) {
+            if (positionHistory[i] == key) return true;
+        }
+        return false;
     }
 
     long GameBoard::perft(int depth) {
@@ -1461,6 +1642,14 @@
             undoMove(m);
         }
         return num;
+    }
+    std::string GameBoard::notation_from_index(unsigned long index) {
+        int r = index / 8;
+        int c = index % 8;
+        char ch1 = 'a' + c;
+        char ch2 = '1' + r;
+        std::string str{ ch1, ch2 };
+        return str;
     }
 
 

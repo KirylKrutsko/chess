@@ -129,24 +129,29 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AgedTT.cpp" />
     <ClCompile Include="chess.cpp" />
+    <ClCompile Include="DepthTT.cpp" />
     <ClCompile Include="Engine.cpp" />
     <ClCompile Include="GameBoard.cpp" />
     <ClCompile Include="Move.cpp" />
     <ClCompile Include="Timer.cpp" />
-    <ClCompile Include="TTEntry.cpp" />
     <ClCompile Include="Tables.cpp" />
     <ClCompile Include="TranspositionTable.cpp" />
+    <ClCompile Include="TTEntry.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AgedTT.h" />
+    <ClInclude Include="DepthTT.h" />
     <ClInclude Include="Engine.h" />
     <ClInclude Include="GameBoard.h" />
     <ClInclude Include="Header.h" />
+    <ClInclude Include="SearchResult.h" />
     <ClInclude Include="Timer.h" />
-    <ClInclude Include="TTEntry.h" />
     <ClInclude Include="Tables.h" />
     <ClInclude Include="Move.h" />
     <ClInclude Include="TranspositionTable.h" />
+    <ClInclude Include="TTEntry.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
