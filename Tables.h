@@ -21,7 +21,7 @@ extern const std::array<Bitboard, 64> KnightBitboards;
 extern std::array<std::array<Bitboard, 4096>, 64> RookMagicBitboards;
 extern std::array<std::array<Bitboard, 512>, 64> BishopMagicBitboards;
 
-extern std::array<std::array<uint64_t, 64>, 14> zobristTable;
+extern std::array<std::array<std::array<uint64_t, 64>, 14>, 2> zobristTable;
 extern uint64_t zobristTurn;
 
 extern std::array<std::array<Bitboard, 64>, 64> BlockCheckPath;
@@ -34,5 +34,3 @@ Bitboard generateBishopAttacksForBlockers(Bitboard blockers, int pos);
 void MagicSetup();
 void BlockCheckSetup();
 void ZobristSetup();
-
-extern TranspositionTable TT;

@@ -9,11 +9,10 @@ struct Timer
 	void start();
 	double runtime();
 	Timer();
-	bool hasTime();
-	void endDepth(long nodes, long moves, int positions);
-	double lastTime;
-	long lastNodes;
-	long lastMoves;
-	int lastPositions; // moves/positions = branching factor
+	bool hasTime(int forDepth);
+	void endDepth(int depth, long moves, int positions);
+	std::array<double, 30> lastTime{ 0 };
+	std::array<long, 30> lastMoves{ 1 };
+	std::array<int, 30> lastPositions{ 1 }; // moves/positions = branching factor
 };
 

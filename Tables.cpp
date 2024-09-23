@@ -1,4 +1,6 @@
 #include "Tables.h"
+#include "AgedTT.h"
+#include "DepthTT.h"
 #include<iostream>
 #include<vector>
 #include<array>
@@ -109,7 +111,7 @@
     std::array<std::array<Bitboard, 4096>, 64> RookMagicBitboards;
     std::array<std::array<Bitboard, 512>, 64> BishopMagicBitboards;
 
-    std::array<std::array<uint64_t, 64>, 14> zobristTable;
+    std::array<std::array<std::array<uint64_t, 64>, 14>, 2> zobristTable;
     uint64_t zobristTurn;
 
     std::array<std::array<Bitboard, 64>, 64> BlockCheckPath;
@@ -256,11 +258,9 @@ void ZobristSetup() {
 
     for (int i = 0; i < 14; ++i) {
         for (int j = 0; j < 64; ++j) {
-            if (i % 7 == 6) zobristTable[i][j] = 0;
-            else zobristTable[i][j] = dist(rng);
+            zobristTable[0][i][j] = dist(rng);
+            zobristTable[1][i][j] = dist(rng);
         }
     }
     zobristTurn = dist(rng);
 }
-
-TranspositionTable TT = TranspositionTable();
