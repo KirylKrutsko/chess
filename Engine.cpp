@@ -451,6 +451,7 @@
         std::string input;
         while (true) {
             std::getline(std::cin, input);
+            if (input.empty()) continue;
             if (input.find("position ") == 0) {
                 bool fenok = true;
                 input = input.substr(9);
@@ -631,38 +632,41 @@
                 uint64_t n, tt;
                 double t;
                 int d;
-                result = iterativeDeepening(15, n, tt, t, d);
+                result = iterativeDeepening(100, n, tt, t, d);
                 if (!result.bestLine.empty()) {
                     currentMove = result.bestLine[result.bestLine.size() - 1];
                     std::cout << "bestmove " << notation_from_move(currentMove) << "\n";
                     makeMove(currentMove);
-                }
-                else endGame();
-                while (true) {
-                    std::cin >> input;
-                    if (input == "exit") break;
-                    legalMoves = board.allMoves();
-                    if (!validateMove(currentMove, input)) {
-                        std::cout << "move invalid\n";
-                    }
-                    else if (!isLegal(currentMove, legalMoves)) {
-                        std::cout << "move illegal\n";
-                    }
-                    else {
-                        makeMove(currentMove);
-                        int d;
-                        result = iterativeDeepening(15, n, tt, t, d);
-                        if (!result.bestLine.empty()) {
-                            currentMove = result.bestLine[result.bestLine.size() - 1];
-                            std::cout << "bestmove " << notation_from_move(currentMove) << "\n";
-                            makeMove(currentMove);
+                    board.printBoard();
+                    while (true) {
+                        std::cin >> input;
+                        if (input == "exit") break;
+                        legalMoves = board.allMoves();
+                        if (!validateMove(currentMove, input)) {
+                            std::cout << "move invalid\n";
+                        }
+                        else if (!isLegal(currentMove, legalMoves)) {
+                            std::cout << "move illegal\n";
                         }
                         else {
-                            endGame();
-                            break;
+                            makeMove(currentMove);
+                            board.printBoard();
+                            int d;
+                            result = iterativeDeepening(100, n, tt, t, d);
+                            if (!result.bestLine.empty()) {
+                                currentMove = result.bestLine[result.bestLine.size() - 1];
+                                std::cout << "bestmove " << notation_from_move(currentMove) << "\n";
+                                makeMove(currentMove);
+                                board.printBoard();
+                            }
+                            else {
+                                endGame();
+                                break;
+                            }
                         }
                     }
                 }
+                else endGame();
             }
             else if (input == "uci") {
                 std::cout << "id name kk.ab\n";
