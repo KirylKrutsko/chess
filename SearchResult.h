@@ -5,7 +5,4 @@
 struct SearchResult {
     int eval;
     std::vector<Move> bestLine;
-    long nodesSearched;
-    long ttHit;
-    double runtime;
 };

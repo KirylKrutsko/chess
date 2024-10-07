@@ -15,10 +15,11 @@ struct GameBoard
     bool inDoubleCheck;
     Bitboard checksFrom;
     Bitboard enPassantTarget;
-    uint8_t plyCount, ply50MoveRule;
+    int plyCount, ply50MoveRule;
     unsigned long wKingPos, bKingPos;
     Bitboard whiteKingRookMoves, whiteKingBishopMoves, blackKingRookMoves, blackKingBishopMoves;
     std::vector<uint64_t> positionHistory;
+    std::vector<Move> moveHistory;
     GameBoard();
     bool setFromFen(const std::string& fen);
 
@@ -40,9 +41,6 @@ struct GameBoard
 
     Bitboard singleWhitePawnAttacks(unsigned long index);
     Bitboard singleBlackPawnAttacks(unsigned long index);
-
-    //Bitboard whiteSlidingAttacksBehind(unsigned long pieceIndex);
-    //Bitboard blackSlidingAttacksBehind(unsigned long pieceIndex);
 
     Bitboard whiteAttacks();
     Bitboard blackAttacks();
@@ -90,17 +88,17 @@ struct GameBoard
     Bitboard bDiscoveredFrom(unsigned long moved);
 
     // mask is a block check bath, or all squares if not in check
-    std::vector<Move> generateWhitePromotions(Bitboard mask);
-    std::vector<Move> generateBlackPromotions(Bitboard mask);
+    void generateWhitePromotions(std::vector<Move>& moves, Bitboard mask);
+    void generateBlackPromotions(std::vector<Move>& moves, Bitboard mask);
 
-    std::vector<Move> generateWhiteMoves(Bitboard mask);
-    std::vector<Move> generateBlackMoves(Bitboard mask);
+    void generateWhiteMoves(std::vector<Move>& moves, Bitboard mask);
+    void generateBlackMoves(std::vector<Move>& moves, Bitboard mask);
 
-    std::vector<Move> generateWhiteKingMoves(bool capturesOnly);
-    std::vector<Move> generateBlackKingMoves(bool capturesOnly);
+    void generateWhiteKingMoves(std::vector<Move>& moves, bool capturesOnly);
+    void generateBlackKingMoves(std::vector<Move>& moves, bool capturesOnly);
 
-    std::vector<Move> generateWhiteCastles();
-    std::vector<Move> generateBlackCastles();
+    void generateWhiteCastles(std::vector<Move>& moves);
+    void generateBlackCastles(std::vector<Move>& moves);
 
     std::vector<Move> allMoves();
     std::vector<Move> noisyMoves();
@@ -108,14 +106,16 @@ struct GameBoard
     void doMove(Move& m);
     void undoMove(Move& m);
 
-    bool isRepetition();
+    bool isRepetition() const;
 
     long perft(int depth);
 
-    std::string notation_from_index(unsigned long index);
-    void printBoard();
+    std::string notation_from_index(unsigned long index) const;
+    void printBoard() const;
     uint64_t computeZobristKey() const;
     uint64_t reserveKey() const;
 
+    std::string rankToFEN(int rank) const;
+    std::string computeFEN() const;
 };
 

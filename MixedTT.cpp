@@ -1,16 +1,14 @@
-#include "AgedTT.h"
-#include "TTEntry.h"
-#include "TranspositionTable.h"
-#include<array>
+#include "MixedTT.h"
 
-void AgedTT::store(uint64_t key, int depth, SearchResult result, EntryType type, int age) {
+
+void MixedTT::store(uint64_t key, int depth, SearchResult result, EntryType type, int age) {
     if (result.eval > 30000 || result.eval < -30000) return;
 
     //size_t index = key % TTsize;
     size_t index = key & (TTsize - 1);
     AgedTTEntry& entry = table[index];
 
-    if ((entry.key == 0 || entry.age <= age) && !result.bestLine.empty()) {
+    if (!result.bestLine.empty() && (entry.key == 0 || entry.age <= lastIrreversible || entry.depth < depth)) {
         if (entry.key == 0) stored++;
         else {
             overriten++;
@@ -28,7 +26,7 @@ void AgedTT::store(uint64_t key, int depth, SearchResult result, EntryType type,
     }
 }
 
-bool AgedTT::retrieve(uint64_t key, TTEntry& entry, bool retrieveOnlyExact) {
+bool MixedTT::retrieve(uint64_t key, TTEntry& entry, bool retrieveOnlyExact) {
     //return false;
     //size_t index = key % TTsize;
     size_t index = key & (TTsize - 1);

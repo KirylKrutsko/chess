@@ -4,29 +4,21 @@
 #include "GameBoard.h"
 #include "DepthTT.h"
 #include "AgedTT.h"
-#include "MixedTT.h"
 #include<iostream>
 #include<vector>
 #include<algorithm>
 #include<sstream>
+#include <chrono>
 #include <string>
 
 
-    Engine::Engine(GameBoard& b, bool isDepthTT) : board(b) {
-        useTimer = true;
-        timebreak = false;
+    Engine::Engine(GameBoard& b) : board(b) {
         maxDepthDefault = 12;
         ttMode = true;
-        if (isDepthTT) TT = new DepthTT();
-        else TT = new AgedTT();
+        TT = new DepthTT();
     }
 
-    SearchResult Engine::searchWithoutTT(int depth, int alpha, int beta, uint64_t& nodesSearched, uint64_t& ttHit) {
-        if (useTimer && depth > 3 && timer.hasTime()) {
-            timebreak = true;
-            return { board.turn ? -std::numeric_limits<int>::max() : std::numeric_limits<int>::max() , {} };
-        }
-
+    SearchResult Engine::searchWithoutTT(int depth, int alpha, int beta, uint64_t& nodesSearched, uint64_t& ttHit, uint64_t& movesSearched, uint64_t& mposSearched) {
         nodesSearched++;
 
         std::vector<Move> moves = board.allMoves();
@@ -37,7 +29,7 @@
             return { 0, {} }; // stalemate
         }
 
-        if (depth == 0) return quiescenceSearch(10, alpha, beta, nodesSearched, ttHit);
+        if (depth == 0) return quiescenceSearch(alpha, beta, nodesSearched, ttHit, movesSearched, mposSearched);
 
         orderMoves(moves, board.computeZobristKey());
         SearchResult moveResult, bestResult;
@@ -48,7 +40,7 @@
             bestResult = { alpha, {} };
             for (Move& move : moves) {
                 board.doMove(move);
-                moveResult = searchWithoutTT(depth - 1, alpha, beta, nodesSearched, ttHit);
+                moveResult = searchWithoutTT(depth - 1, alpha, beta, nodesSearched, ttHit, movesSearched, mposSearched);
                 moveResult.bestLine.push_back(move);
                 board.undoMove(move);
 
@@ -69,7 +61,7 @@
             bestResult = { beta, {} };
             for (Move& move : moves) {
                 board.doMove(move);
-                moveResult = searchWithoutTT(depth - 1, alpha, beta, nodesSearched, ttHit);
+                moveResult = searchWithoutTT(depth - 1, alpha, beta, nodesSearched, ttHit, movesSearched, mposSearched);
                 moveResult.bestLine.push_back(move);
                 board.undoMove(move);
 
@@ -89,12 +81,7 @@
         return bestResult;
     }
 
-    SearchResult Engine::search(int depth, int alpha, int beta, uint64_t& nodesSearched, uint64_t& ttHit) {
-        if (useTimer && depth > 3 && !timer.hasTime()) {
-            timebreak = true;
-            return { board.turn ? -std::numeric_limits<int>::max() : std::numeric_limits<int>::max() , {} };
-        }
-
+    SearchResult Engine::search(int depth, int alpha, int beta, uint64_t& nodesSearched, uint64_t& ttHit, uint64_t& movesSearched, uint64_t& mposSearched) {
         nodesSearched++;
 
         if (!ttMode){
@@ -103,11 +90,9 @@
             }
         }
 
-        SearchResult bestResult = { board.turn ? alpha : beta, {} };
-
         uint64_t key = board.computeZobristKey();
         TTEntry entry;
-        if (ttMode && TT->retrieve(key, entry, false) && entry.depth >= depth) {
+        if (ttMode && TT->retrieve(key, entry) && entry.depth >= depth) {
             ttHit++;
             if (entry.type == EXACT) {
                 //if (entry.depth == depth) {
@@ -122,15 +107,11 @@
                     //}
                 return { entry.eval,{entry.bestMove} };
             }
-            else if (entry.type == UPPER && entry.eval > alpha) {
+            if (entry.type == UPPER && entry.eval > alpha)
                 alpha = entry.eval;
-                bestResult = { entry.eval, {entry.bestMove} };
-            }
-            else if (entry.type == LOWER && entry.eval < beta) {
+            if (entry.type == LOWER && entry.eval < beta)
                 beta = entry.eval;
-                bestResult = { entry.eval, {entry.bestMove} };
-            }
-            if (alpha >= beta) return bestResult;
+            if (alpha >= beta) return { entry.eval,{} };
         }
 
         std::vector<Move> moves = board.allMoves();
@@ -142,17 +123,18 @@
             return { 0, {} }; // stalemate
         }
 
-        if (depth == 0) return quiescenceSearch(10, alpha, beta, nodesSearched, ttHit);
+        if (depth == 0) return quiescenceSearch(alpha, beta, nodesSearched, ttHit, movesSearched, mposSearched);
 
         orderMoves(moves, key);
-        SearchResult moveResult;
+        SearchResult moveResult, bestResult;
         EntryType type = EXACT;
 
         if (board.turn) {
             type = LOWER;
+            bestResult = { alpha, {} };
             for (Move& move : moves) {
                 board.doMove(move);
-                moveResult = search(depth - 1, alpha, beta, nodesSearched, ttHit);
+                moveResult = search(depth - 1, alpha, beta, nodesSearched, ttHit, movesSearched, mposSearched);
                 moveResult.bestLine.push_back(move);
                 board.undoMove(move);
 
@@ -167,12 +149,21 @@
                     break;  // Beta cut-off
                 }
             }
+
+            /*if(type == EXACT) {
+                SearchResult check = searchWithoutTT(depth, std::numeric_limits<int>::min(), std::numeric_limits<int>::max());
+                if (check.eval != bestResult.eval) {
+                    std::cout << check.eval << "\t!= best :\t" << bestResult.eval << "\n";
+                }
+            }*/
+
         }
         else {
             type = UPPER;
+            bestResult = { beta, {} }; 
             for (Move& move : moves) {
                 board.doMove(move);
-                moveResult = search(depth - 1, alpha, beta, nodesSearched, ttHit);
+                moveResult = search(depth - 1, alpha, beta, nodesSearched, ttHit, movesSearched, mposSearched);
                 moveResult.bestLine.push_back(move);
                 board.undoMove(move);
 
@@ -187,13 +178,22 @@
                     break;  // Alpha cut-off
                 }
             }
+
+
+            /*if (type == EXACT) {
+                SearchResult check = searchWithoutTT(depth, std::numeric_limits<int>::min(), std::numeric_limits<int>::max());
+                if (check.eval != bestResult.eval) {
+                    std::cout << check.eval << "\t!= best :\t" << bestResult.eval << "\n";
+                }
+            }*/
+
         }
 
-        if (!timebreak) TT->store(key, depth, bestResult, type, movesOnSearchStarted);
+        TT->store(key, depth, bestResult, type, history.size());
         return bestResult;
     }
 
-    SearchResult Engine::quiescenceSearch(int maxDepthExt, int alpha, int beta, uint64_t& nodesSearched, uint64_t& ttHit) {
+    SearchResult Engine::quiescenceSearch(int alpha, int beta, uint64_t& nodesSearched, uint64_t& ttHit, uint64_t& movesSearched, uint64_t& mposSearched) {
         nodesSearched++;
 
         if (!ttMode) {
@@ -202,11 +202,9 @@
             }
         }
 
-        SearchResult bestResult = { board.turn ? alpha : beta,{} };
-
         uint64_t key = board.computeZobristKey();
         TTEntry entry;
-        if (ttMode && TT->retrieve(key, entry, false)) {
+        if (ttMode && TT->retrieve(key, entry)) {
             ttHit++;
             if (entry.type == EXACT) {
                 //if (entry.depth == depth) {
@@ -221,22 +219,18 @@
                     //}
                 return { entry.eval,{entry.bestMove} };
             }
-            else if (entry.type == UPPER && entry.eval > alpha) {
+            if (entry.type == UPPER && entry.eval > alpha)
                 alpha = entry.eval;
-                bestResult = { entry.eval, {entry.bestMove} };
-            }
-            else if (entry.type == LOWER && entry.eval < beta) {
+            if (entry.type == LOWER && entry.eval < beta)
                 beta = entry.eval;
-                bestResult = { entry.eval, {entry.bestMove} };
-            }
-            if (alpha >= beta) return bestResult;
+            if (alpha >= beta) return { entry.eval,{} };
+        }
+
+        if (board.checksFrom) {
+            return search(1, alpha, beta, nodesSearched, ttHit, movesSearched, mposSearched);
         }
 
         int standPat = evaluate();
-        /*if (maxDepthExt == 0) {
-            std::cout << "too deep QS!\n";
-            return { standPat, {} };
-        }*/
 
         std::vector<Move> moves = board.noisyMoves();
         if (moves.empty()) {
@@ -244,15 +238,16 @@
         }
 
         orderMoves(moves, key);
-        SearchResult moveResult;
+        SearchResult moveResult, bestResult;
         EntryType type = EXACT;
 
         if (board.turn) {
             if (standPat >= beta) return { standPat,{} }; // cut-off if standing position is already too good
             alpha = std::max(alpha, standPat); // updating the alpha for following search
+            bestResult = { alpha, {} };
             for (Move& move : moves) {
                 board.doMove(move);
-                moveResult = quiescenceSearch(maxDepthExt - 1, alpha, beta, nodesSearched, ttHit);
+                moveResult = quiescenceSearch(alpha, beta, nodesSearched, ttHit, movesSearched, mposSearched);
                 moveResult.bestLine.push_back(move);
                 board.undoMove(move);
 
@@ -270,9 +265,10 @@
         else {
             if (standPat <= alpha) return { standPat,{} };  // cut-off if standing position is already too good
             beta = std::min(beta, standPat); // updating the beta for following search
+            bestResult = { beta, {} };
             for (Move& move : moves) {
                 board.doMove(move);
-                moveResult = quiescenceSearch(maxDepthExt - 1, alpha, beta, nodesSearched, ttHit);
+                moveResult = quiescenceSearch(alpha, beta, nodesSearched, ttHit, movesSearched, mposSearched);
                 moveResult.bestLine.push_back(move);
                 board.undoMove(move);
 
@@ -331,7 +327,7 @@
 //    }
 //
 
-    SearchResult Engine::iterativeDeepening(int maxDepth, uint64_t& nodesSearched, uint64_t& ttHit, double& time, int& depthSearched) {
+    SearchResult Engine::iterativeDeepening(int maxDepth, bool useTimer, uint64_t& nodesSearched, uint64_t& ttHit, double& time) {
         nodesSearched = 0;
         ttHit = 0;
 
@@ -343,31 +339,44 @@
             return { 0, {moves[0]} };
         }
 
-        SearchResult result, deepestResult;
+        uint64_t curNodes = 0;
+        uint64_t curTTHit = 0;
+        uint64_t curMoves = moves.size();
+        uint64_t curMpos = 1;
+
+        SearchResult result;
         timer.start();
 
         // quick search for depth 1 :
         uint64_t key = board.computeZobristKey();
-        movesOnSearchStarted = board.moveHistory.size();
-        deepestResult = search(1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), nodesSearched, ttHit);
+        result = search(1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), curNodes, ttHit, curMoves, curMpos);
+        timer.endDepth(1, curMoves, curMpos);
+        nodesSearched += curNodes;
+        ttHit += curTTHit;
 
         // iterative deepening search
-        for (int depth = 2; depth <= maxDepth && abs(deepestResult.eval) < checkmateScore / 2 && (!useTimer || timer.hasTime()); depth++) {
-            timebreak = false;
+        for (int depth = 2; depth <= maxDepth && (!useTimer || timer.hasTime(depth)) && abs(result.eval) < checkmateScore / 2; depth++) {
 
-            movesOnSearchStarted = board.moveHistory.size();
-            result = search(depth, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), nodesSearched, ttHit);
-            
-            if (timebreak) break;
-            deepestResult = result;
-            std::cout << "Searched for depth " << depth << " (" << timer.runtime() << " seconds) : "<<deepestResult.eval<<"\n";
-            //if (!deepestResult.bestLine.empty()) std::cout << notation_from_move(deepestResult.bestLine[deepestResult.bestLine.size() - 1]) << "\n";
+            curNodes = 0;
+            curTTHit = 0;
+            curMoves = moves.size();
+            curMpos = 1;
 
-            depthSearched = depth;
+            //#ifndef NDEBUG // exclude the timer in Debug mode
+            //if (useTimer && !timer.hasTime(depth)) {
+            //    break;
+            //}
+            //#endif
+
+            result = search(depth, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), curNodes, ttHit, curMoves, curMpos);
+            std::cout << "Searched for depth " << depth << " (" << timer.runtime() << " seconds)\n";
+
+            timer.endDepth(depth, curMoves, curMpos);
+            nodesSearched += curNodes;
+            ttHit += curTTHit;
         }
-
         time = timer.runtime();
-        return deepestResult;
+        return result;
     }
 
     int Engine::evaluate() {
@@ -378,6 +387,9 @@
             if ((wRaw < 400 && bRaw == 0) || (bRaw < 400 && wRaw == 0)) return 0;
         }
         int eval = wRaw - bRaw + calcWhiteAwards(coeff) - calcBlackAwards(coeff);
+        /*if (eval > 0) eval += activeKingAward(coeff);
+        else eval -= activeKingAward(coeff);*/
+        //eval += activeKingAward(coeff);
         return eval;
     }
 
@@ -430,8 +442,8 @@
 
     void Engine::orderMoves(std::vector<Move>& moves, uint64_t positionKey) {
         TTEntry entry;
-        if (TT->retrieve(positionKey, entry, true) && entry.bestMove.start != 64) {
-            //TT->retrieved--;
+        if (TT->retrieve(positionKey, entry) && entry.bestMove.start != 64) {
+            TT->retrieved--;
             auto it = std::find(moves.begin(), moves.end(), entry.bestMove);
             if (it != moves.end()) {
                 std::iter_swap(moves.begin(), it);
@@ -439,7 +451,7 @@
             }
         }
         else {
-            //TT->not_retrieved--;
+            TT->not_retrieved--;
             std::sort(moves.begin(), moves.end());
         }
     }
@@ -452,99 +464,57 @@
         while (true) {
             std::getline(std::cin, input);
             if (input.find("position ") == 0) {
-                bool fenok = true;
+                history.clear();
                 input = input.substr(9);
                 auto mIndex = input.find("moves ");
                 if (mIndex == std::string::npos) {
-                    if (!board.setFromFen(input)) {
-                        fenok = false;
-                        std::cout << "fen invalid\n";
-                    }
+                    if (!board.setFromFen(input)) std::cout << "fen invalid\n";
                 }
                 else {
-                    if (!board.setFromFen(input.substr(0, mIndex))) {
-                        fenok = false;
-                        std::cout << "fen invalid\n";
-                    }
-                    board.moveHistory.clear();
-                    board.positionHistory.clear();
+                    if (!board.setFromFen(input.substr(0, mIndex))) std::cout << "fen invalid\n";
                     std::istringstream iss(input.substr(mIndex + 6));
                     std::string move;
                     while (iss >> move) {
                         legalMoves = board.allMoves();
                         if (!validateMove(currentMove, move)) {
-                            fenok = false;
                             std::cout << "move invalid\n";
                             break;
                         }
                         else if (!isLegal(currentMove, legalMoves)) {
-                            fenok = false;
                             std::cout << "move illegal\n";
                             break;
                         }
-                        makeMove(currentMove);
+                        board.doMove(currentMove);
+                        history.push_back(currentMove);
                     }
                 }
-                if (fenok) std::cout << "fen ok\n";
             }
             else if (input.find("go depth ") == 0) {
                 input = input.substr(9);
                 if (!std::all_of(input.begin(), input.end(), ::isdigit)) std::cout << "depth wrong\n";
                 uint64_t n, tt;
                 double t;
-                int d;
-                useTimer = false;
-                result = iterativeDeepening(std::stoi(input), n, tt, t, d);
-                std::cout << "nodes : " << n << "\nttHit : " << tt << "\ntime : " << t << "\ndepth : " << d << "\n";
+                result = iterativeDeepening(std::stoi(input), false, n, tt, t);
                 if (!result.bestLine.empty()) std::cout << "bestmove " << notation_from_move(result.bestLine[result.bestLine.size() - 1]) << "\n";
                 else endGame();
-                useTimer = true;
-            }
-            else if (input.find("go time ") == 0) {
-                input = input.substr(8);
-                try {
-                    timer.timeLimit = std::stod(input);
-                }
-                catch (std::invalid_argument& e) {
-                    std::cout << "time wrong\n";
-                    continue;
-                }
-                catch (std::out_of_range& e) {
-                    std::cout << "time wrong\n";
-                    continue;
-                }
-                useTimer = true;
-                uint64_t n, tt;
-                double t;
-                int d;
-                result = iterativeDeepening(100, n, tt, t, d);
-                std::cout << "nodes : " << n << "\nttHit : " << tt << "\ntime : " << t << "\ndepth : " << d << "\n";
-                if (!result.bestLine.empty()) std::cout << "bestmove " << notation_from_move(result.bestLine[result.bestLine.size() - 1]) << "\n";
-                else endGame();
-            }
-            else if (input.find("go perft ") == 0) {
-                input = input.substr(9);
-                if (!std::all_of(input.begin(), input.end(), ::isdigit)) std::cout << "depth wrong\n";
-                xperft(std::stoi(input));
             }
             else if (input.find("go") == 0) {
                 uint64_t n, tt;
                 double t;
-                int d;
-                result = iterativeDeepening(maxDepthDefault, n, tt, t, d);
-                std::cout << "nodes : " << n << "\nttHit : " << tt << "\ntime : " << t << "\ndepth : " << d << "\n";
+                result = iterativeDeepening(maxDepthDefault, true, n, tt, t);
                 if (!result.bestLine.empty()) std::cout << "bestmove " << notation_from_move(result.bestLine[result.bestLine.size() - 1]) << "\n";
                 else endGame();
+            }
+            else if (input.find("go perft") == 0) {
+                input = input.substr(9);
+                if (!std::all_of(input.begin(), input.end(), ::isdigit)) std::cout << "depth wrong\n";
+                xperft(std::stoi(input));
             }
             else if (input == "print") {
                 board.printBoard();
             }
             else if (input == "show moves") {
                 legalMoves = board.allMoves();
-                printMoves(legalMoves);
-            }
-            else if (input == "show noisy") {
-                legalMoves = board.noisyMoves();
                 printMoves(legalMoves);
             }
             else if (input == "evaluate") {
@@ -556,24 +526,23 @@
                     std::cout << "move invalid\n";
                 }
                 else if (!isLegal(currentMove, legalMoves)) {
-                    std::cout << "move illegal\n";
+                    std::cout << "move illigal\n";
                 }
                 else {
-                    makeMove(currentMove);
-                    std::cout << "move ok\n";
+                    board.doMove(currentMove);
+                    history.push_back(currentMove);
                 }
             }
             else if (input == "compare TT") {
                 int depth;
                 std::cin >> depth;
                 timer.start();
-                uint64_t n, tt;
-                SearchResult eval2 = searchWithoutTT(depth, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), n, tt);
+                uint64_t n, tt, m, p;
+                SearchResult eval2 = searchWithoutTT(depth, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), n, tt, m, p);
                 std::cout << "Non-TT : time = " << timer.runtime() << ", eval : ";
                 printEval(eval2.eval);
                 timer.start();
-                movesOnSearchStarted = board.moveHistory.size();
-                SearchResult eval1 = search(depth, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), n, tt);
+                SearchResult eval1 = search(depth, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), n, tt, m, p);
                 std::cout << "TT : time = " << timer.runtime() << ", nodes = " << n << ", hit = " << tt << "\n";
                 printEval(eval2.eval);
             }
@@ -581,15 +550,16 @@
                 while (true) {
                     uint64_t n, tt;
                     double t;
-                    int d;
-                    result = iterativeDeepening(maxDepthDefault, n, tt, t,d);
+                    result = iterativeDeepening(maxDepthDefault, true, n, tt, t);
                     if (result.bestLine.empty()) {
                         endGame();
                         break;
                     }
                     currentMove = result.bestLine[result.bestLine.size() - 1];
                     std::cout << notation_from_move(currentMove) << "\n\n";
-                    makeMove(currentMove);
+                    board.doMove(currentMove);
+                    history.push_back(currentMove);
+                    updateTTmode();
                 }
             }
             else if (input == "show best line") {
@@ -598,71 +568,17 @@
             else if (input == "TT lookup") {
                 uint64_t key = board.computeZobristKey();
                 TTEntry entry;
-                if (TT->retrieve(key, entry, false)) {
+                if (TT->retrieve(key, entry)) {
                     std::cout << "Type : " << static_cast<int>(entry.type) << "\nDepth : " << static_cast<int>(entry.depth) << "\nEval : " << static_cast<int>(entry.eval) << "\nBest move : " << notation_from_move(entry.bestMove) << "\n";
                 }
                 else std::cout << "not found\n";
             }
             else if (input == "undo move") {
-                board.undoMove(board.moveHistory[board.moveHistory.size() - 1]);
-                ttMode = false;
-                std::cout << "Switched to non-TT mode!\n";
+                board.undoMove(history[history.size() - 1]);
+                history.pop_back();
             }
-            else if (input == "key") {
-                std::cout << board.computeZobristKey() << "\n";
-            }
-            else if (input == "50move") {
-                std::cout << board.ply50MoveRule << "\n";
-            }
-            else if (input == "moves count") {
-                legalMoves = board.allMoves();
-                std::cout << legalMoves.size() << "\n";
-            }
-            else if (input == "checkers") {
-                std::cout << board.checksFrom << "\n";
-            }
-            else if (input == "fen") {
-                std::cout << board.computeFEN() << "\n";
-            }
-            else if (input == "tt stats") {
-                std::cout << "stored " << TT->stored << " retrieved " << TT->retrieved << " not_retrieved " << TT->not_retrieved << " overwriten " << TT->overriten << " overwriten_with_new " << TT->overwritenWithDiff << " refused " << TT->refused << "\n";
-            }
-            else if (input == "play") {
-                uint64_t n, tt;
-                double t;
-                int d;
-                result = iterativeDeepening(15, n, tt, t, d);
-                if (!result.bestLine.empty()) {
-                    currentMove = result.bestLine[result.bestLine.size() - 1];
-                    std::cout << "bestmove " << notation_from_move(currentMove) << "\n";
-                    makeMove(currentMove);
-                }
-                else endGame();
-                while (true) {
-                    std::cin >> input;
-                    if (input == "exit") break;
-                    legalMoves = board.allMoves();
-                    if (!validateMove(currentMove, input)) {
-                        std::cout << "move invalid\n";
-                    }
-                    else if (!isLegal(currentMove, legalMoves)) {
-                        std::cout << "move illegal\n";
-                    }
-                    else {
-                        makeMove(currentMove);
-                        int d;
-                        result = iterativeDeepening(15, n, tt, t, d);
-                        if (!result.bestLine.empty()) {
-                            currentMove = result.bestLine[result.bestLine.size() - 1];
-                            std::cout << "bestmove " << notation_from_move(currentMove) << "\n";
-                            makeMove(currentMove);
-                        }
-                        else {
-                            endGame();
-                            break;
-                        }
-                    }
-                }
+            else if (input.find("tt policy = ") == 0) {
+                input = input.substr(12);
             }
             else if (input == "uci") {
                 std::cout << "id name kk.ab\n";
@@ -674,36 +590,12 @@
             }
             else if (input.find("tt policy ") == 0) {
                 input = input.substr(10);
-                if (input == "age" && typeid(TT) != typeid(AgedTT)) {
-                    delete TT;
-                    TT = new AgedTT();
-                }
-                else if (input == "depth" && typeid(TT) != typeid(DepthTT)) {
-                    delete TT;
-                    TT = new DepthTT();
-                }
-                else if (input == "mixed" && typeid(TT) != typeid(MixedTT)) {
-                    delete TT;
-                    TT = new MixedTT();
-                }
-                else {
-                    std::cout << "unknown tt policy\n";
-                }
+                if (input == "age" && typeid(TT) != typeid(AgedTT)) TT = new AgedTT();
+                else if (input == "depth" && typeid(TT) != typeid(DepthTT)) TT = new DepthTT();
             }
             else if (input == "quit") break;
             else {
                 std::cout << "unknown command\n";
-            }
-        }
-    }
-
-    void Engine::makeMove(Move& m) {
-        board.doMove(m);
-        updateTTmode();
-        if (board.ply50MoveRule == 0) {
-            if (MixedTT* mixed = dynamic_cast<MixedTT*>(TT)) {
-                mixed->lastIrreversible = board.positionHistory.size();
-                //std::cout << "last irreversible updated\n";
             }
         }
     }
@@ -730,12 +622,11 @@
         return false;
     }
     void Engine::endGame() {
-        std::cout << "gameover ";
         if (board.checksFrom) {
             std::string won = board.turn ? "black" : "white";
-            std::cout << won << " won\n";
+            std::cout << won << " won\n\n";
         }
-        else std::cout << "draw\n";
+        else std::cout << "draw\n\n";
     }
 
     void Engine::showBestLine(std::vector<Move> line) {
@@ -762,7 +653,7 @@
     }
 
     void Engine::printMoves(std::vector<Move>& moves) {
-        std::cout << "Moves (" << moves.size() << ") : ";
+        std::cout << "Moves (" << moves.size() << ") :\n";
         for (Move m : moves) {
             std::cout << notation_from_move(m) << " ";
         }
@@ -856,23 +747,20 @@
         std::cout << std::endl;
     }
 
-    bool Engine::updateTTmode() {
+    void Engine::updateTTmode() {
         if (ttMode) {
             if (board.isRepetition() || board.ply50MoveRule > 85) {
-                std::cout << "Switched to non-TT mode!\n";
+                //std::cout << "Switched to non-TT mode!\n";
                 board.positionHistory.pop_back();
                 ttMode = false;
-                return true;
             }
         }
         else {
             if (board.ply50MoveRule == 0) {
-                std::cout << "Switched to TT mode!\n";
+                //std::cout << "Switched to TT mode!\n";
                 ttMode = true;
-                return true;
             }
         }
-        return false;
     }
 
     void Engine::out(Bitboard b) {

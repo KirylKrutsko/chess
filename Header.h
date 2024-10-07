@@ -32,3 +32,5 @@ const Bitboard wOOOPlaces = 0x000000000000000CULL;
 const Bitboard bOOOPlaces = 0x0C00000000000000ULL;
 const Bitboard wOOOPlacesExt = 0x000000000000000EULL;
 const Bitboard bOOOPlacesExt = 0x0E00000000000000ULL;
+
+constexpr size_t TTsize = (1 << 20);

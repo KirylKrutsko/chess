@@ -1,17 +1,13 @@
 #pragma once
 #include "TranspositionTable.h"
-#include "TTEntry.h"
+#include "AgedTTEntry.h"
 
 struct AgedTT : TranspositionTable
 {
-	struct AgedTTEntry : TTEntry {
-		int age;
-	};
-
-	std::array<AgedTTEntry, (1 << 22) - 1> table;
+	std::array<AgedTTEntry, TTsize> table;
 
 	void store(uint64_t key, int depth, SearchResult result, EntryType type, int age) override;
-	bool retrieve(uint64_t key, TTEntry& entry) override;
+	bool retrieve(uint64_t key, TTEntry& entry, bool retrieveOnlyExact) override;
 
 };
 
