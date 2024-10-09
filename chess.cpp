@@ -247,8 +247,9 @@ bool isThreefoldRepetition(std::vector<uint64_t>& history, uint64_t key) {
 void runMatchup(std::string& fen, bool depthIsWhite, int testNum, int depth, int timelimit) {
     GameBoard board1 = GameBoard();
     GameBoard board2 = GameBoard();
-    Engine engine1(board1, true);
-    Engine engine2(board2, false);
+    Engine engine1(board1);
+    Engine engine2(board2);
+    // change TT
     if (depth != 0) {
         engine1.useTimer = false;
         engine2.useTimer = false;
@@ -440,7 +441,7 @@ int main()
     fin.close();*/
 
     GameBoard board = GameBoard();
-    Engine engine = Engine(board, true);
+    Engine engine = Engine(board);
     engine.start();
 
     return 0;

@@ -359,7 +359,6 @@
     }
 
     // determines whether white/black king is in discovered check after moving a piece from index
-
     /*unsigned long wDiscovedFrom(unsigned long moved) {
         if(!((bit << moved) & (whiteKingBishopMoves | whiteKingRookMoves))) return 64;
         unsigned char result;
@@ -1672,7 +1671,6 @@
     std::string GameBoard::computeFEN() const {
         std::ostringstream fen;
 
-        // Step 1: Piece Placement
         for (int rank = 7; rank >= 0; --rank) {
             fen << rankToFEN(rank);
             if (rank > 0) {
@@ -1680,10 +1678,8 @@
             }
         }
 
-        // Step 2: Active Color
         fen << ' ' << (turn ? 'w' : 'b');
 
-        // Step 3: Castling Availability
         fen << ' ';
         bool castlingAvailable = false;
         if (wOO) { fen << 'K'; castlingAvailable = true; }
@@ -1694,7 +1690,6 @@
             fen << '-';
         }
 
-        // Step 4: En Passant Target
         fen << ' ';
         if (enPassantTarget) {
             unsigned long lsb;
@@ -1707,7 +1702,6 @@
             fen << '-';
         }
         
-        // Step 5: Move clocks
         fen << " " << ply50MoveRule << " " << plyCount/2 + 1;
 
         return fen.str();

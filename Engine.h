@@ -311,7 +311,7 @@ constexpr std::array<int, 7> endgameValues = {
 
 struct Engine
 {
-	Engine(GameBoard& b, bool isDepthTT);
+	Engine(GameBoard& b);
 	GameBoard board;
     int maxDepthDefault;
     TranspositionTable* TT;

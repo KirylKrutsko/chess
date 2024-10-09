@@ -12,13 +12,12 @@
 #include <string>
 
 
-    Engine::Engine(GameBoard& b, bool isDepthTT) : board(b) {
+    Engine::Engine(GameBoard& b) : board(b) {
         useTimer = true;
         timebreak = false;
         maxDepthDefault = 12;
         ttMode = true;
-        if (isDepthTT) TT = new DepthTT();
-        else TT = new AgedTT();
+        TT = new MixedTT();
     }
 
     SearchResult Engine::searchWithoutTT(int depth, int alpha, int beta, uint64_t& nodesSearched, uint64_t& ttHit) {
@@ -453,8 +452,13 @@
             std::getline(std::cin, input);
             if (input.empty()) continue;
             if (input.find("position ") == 0) {
-                bool fenok = true;
                 input = input.substr(9);
+                if (input.find("fen ") == 0) input = input.substr(4);
+                else if (input.find("startpos") != 0) {
+                    std::cout << "unknown command\n";
+                    continue;
+                }
+                bool fenok = true;
                 auto mIndex = input.find("moves ");
                 if (mIndex == std::string::npos) {
                     if (!board.setFromFen(input)) {
@@ -606,8 +610,6 @@
             }
             else if (input == "undo move") {
                 board.undoMove(board.moveHistory[board.moveHistory.size() - 1]);
-                ttMode = false;
-                std::cout << "Switched to non-TT mode!\n";
             }
             else if (input == "key") {
                 std::cout << board.computeZobristKey() << "\n";
@@ -628,11 +630,46 @@
             else if (input == "tt stats") {
                 std::cout << "stored " << TT->stored << " retrieved " << TT->retrieved << " not_retrieved " << TT->not_retrieved << " overwriten " << TT->overriten << " overwriten_with_new " << TT->overwritenWithDiff << " refused " << TT->refused << "\n";
             }
-            else if (input == "play") {
+            else if (input.find("play ") == 0){
+                input = input.substr(5);
+                if (input.find("time ") == 0) {
+                    input = input.substr(5);
+                    try {
+                        timer.timeLimit = std::stod(input);
+                        useTimer = true;
+                    }
+                    catch (std::invalid_argument& e) {
+                        std::cout << "time wrong\n";
+                        continue;
+                    }
+                    catch (std::out_of_range& e) {
+                        std::cout << "time wrong\n";
+                        continue;
+                    }
+                }
+                else if(input.find("depth ")==0) {
+                    input = input.substr(6);
+                    try {
+                        maxDepthDefault = std::stoi(input);
+                        useTimer = false;
+                    }
+                    catch (std::invalid_argument& e) {
+                        std::cout << "time wrong\n";
+                        continue;
+                    }
+                    catch (std::out_of_range& e) {
+                        std::cout << "time wrong\n";
+                        continue;
+                    }
+                }
+                else {
+                    std::cout << "wrong command format\n";
+                    continue;
+                }
                 uint64_t n, tt;
                 double t;
                 int d;
-                result = iterativeDeepening(100, n, tt, t, d);
+                result = iterativeDeepening(maxDepthDefault, n, tt, t, d);
                 if (!result.bestLine.empty()) {
                     currentMove = result.bestLine[result.bestLine.size() - 1];
                     std::cout << "bestmove " << notation_from_move(currentMove) << "\n";
@@ -652,7 +689,7 @@
                             makeMove(currentMove);
                             board.printBoard();
                             int d;
-                            result = iterativeDeepening(100, n, tt, t, d);
+                            result = iterativeDeepening(maxDepthDefault, n, tt, t, d);
                             if (!result.bestLine.empty()) {
                                 currentMove = result.bestLine[result.bestLine.size() - 1];
                                 std::cout << "bestmove " << notation_from_move(currentMove) << "\n";
