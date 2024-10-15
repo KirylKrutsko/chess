@@ -13,6 +13,6 @@ struct TranspositionTable
 	uint64_t retrieved = 0;
 	uint64_t not_retrieved = 0;
 
-    virtual void store(uint64_t key, int depth, SearchResult result, EntryType type, int age) = 0;
+    virtual void store(uint64_t key, SearchResult result, EntryType type, int depth, int ageOnStarted, int ageCurrent) = 0;
     virtual bool retrieve(uint64_t key, TTEntry& entry, bool retrieveOnlyExact) = 0;
 };

@@ -309,6 +309,10 @@ constexpr std::array<int, 7> endgameValues = {
     0, 3, 3, 5, 9, 0, 0
 };
 
+enum TTType {
+    MIXED, DEPTH, AGE
+};
+
 struct Engine
 {
 	Engine(GameBoard& b);
@@ -316,6 +320,7 @@ struct Engine
     int maxDepthDefault;
     TranspositionTable* TT;
     bool ttMode; // if false - disallows TT access. used to prevent 3 fold repetition and 50 move rule draws
+    TTType ttType;
 
     Timer timer;
     bool useTimer;

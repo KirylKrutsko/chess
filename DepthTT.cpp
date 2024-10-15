@@ -1,6 +1,6 @@
 #include "DepthTT.h"
 
-void DepthTT::store(uint64_t key, int depth, SearchResult result, EntryType type, int age) {
+void DepthTT::store(uint64_t key, SearchResult result, EntryType type, int depth, int ageOnStarted, int ageCurrent) {
     if (result.eval > 30000 || result.eval < -30000) return;
 
     //size_t index = key % TTsize;

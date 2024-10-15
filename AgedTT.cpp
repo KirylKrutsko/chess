@@ -3,14 +3,14 @@
 #include "TranspositionTable.h"
 #include<array>
 
-void AgedTT::store(uint64_t key, int depth, SearchResult result, EntryType type, int age) {
+void AgedTT::store(uint64_t key, SearchResult result, EntryType type, int depth, int ageOnStarted, int ageCurrent) {
     if (result.eval > 30000 || result.eval < -30000) return;
 
     //size_t index = key % TTsize;
     size_t index = key & (TTsize - 1);
     AgedTTEntry& entry = table[index];
 
-    if ((entry.key == 0 || entry.age <= age) && !result.bestLine.empty()) {
+    if ((entry.key == 0 || entry.age <= ageOnStarted) && !result.bestLine.empty()) {
         if (entry.key == 0) stored++;
         else {
             overriten++;
@@ -20,7 +20,7 @@ void AgedTT::store(uint64_t key, int depth, SearchResult result, EntryType type,
         entry.depth = depth;
         entry.eval = result.eval;
         entry.type = type;
-        entry.age = age;
+        entry.age = ageOnStarted;
         entry.bestMove = result.bestLine[result.bestLine.size() - 1];
     }
     else {

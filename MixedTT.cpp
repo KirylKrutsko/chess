@@ -1,7 +1,7 @@
 #include "MixedTT.h"
 
 
-void MixedTT::store(uint64_t key, int depth, SearchResult result, EntryType type, int age) {
+void MixedTT::store(uint64_t key, SearchResult result, EntryType type, int depth, int ageOnStarted, int ageCurrent) {
     if (result.eval > 30000 || result.eval < -30000) return;
 
     //size_t index = key % TTsize;
@@ -18,7 +18,7 @@ void MixedTT::store(uint64_t key, int depth, SearchResult result, EntryType type
         entry.depth = depth;
         entry.eval = result.eval;
         entry.type = type;
-        entry.age = age;
+        entry.age = ageCurrent;
         entry.bestMove = result.bestLine[result.bestLine.size() - 1];
     }
     else {

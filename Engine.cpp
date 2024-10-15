@@ -18,6 +18,7 @@
         maxDepthDefault = 12;
         ttMode = true;
         TT = new MixedTT();
+        ttType = MIXED;
     }
 
     SearchResult Engine::searchWithoutTT(int depth, int alpha, int beta, uint64_t& nodesSearched, uint64_t& ttHit) {
@@ -89,7 +90,7 @@
     }
 
     SearchResult Engine::search(int depth, int alpha, int beta, uint64_t& nodesSearched, uint64_t& ttHit) {
-        if (useTimer && depth > 3 && !timer.hasTime()) {
+        if (useTimer && !timer.hasTime()) {
             timebreak = true;
             return { board.turn ? -std::numeric_limits<int>::max() : std::numeric_limits<int>::max() , {} };
         }
@@ -188,7 +189,7 @@
             }
         }
 
-        if (!timebreak) TT->store(key, depth, bestResult, type, movesOnSearchStarted);
+        if (!timebreak) TT->store(key, bestResult, type, depth, movesOnSearchStarted, board.moveHistory.size());
         return bestResult;
     }
 
@@ -344,10 +345,10 @@
 
         SearchResult result, deepestResult;
         timer.start();
+        movesOnSearchStarted = board.moveHistory.size();
 
         // quick search for depth 1 :
         uint64_t key = board.computeZobristKey();
-        movesOnSearchStarted = board.moveHistory.size();
         deepestResult = search(1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), nodesSearched, ttHit);
 
         // iterative deepening search
@@ -715,20 +716,40 @@
             }
             else if (input.find("tt policy ") == 0) {
                 input = input.substr(10);
-                if (input == "age" && typeid(TT) != typeid(AgedTT)) {
+                if (input == "age") {
                     delete TT;
                     TT = new AgedTT();
+                    ttType = AGE;
                 }
-                else if (input == "depth" && typeid(TT) != typeid(DepthTT)) {
+                else if (input == "depth") {
                     delete TT;
                     TT = new DepthTT();
+                    ttType = DEPTH;
                 }
-                else if (input == "mixed" && typeid(TT) != typeid(MixedTT)) {
+                else if (input == "mixed") {
                     delete TT;
                     TT = new MixedTT();
+                    ttType = MIXED;
                 }
                 else {
                     std::cout << "unknown tt policy\n";
+                }
+            }
+            else if (input == "reset") {
+                ZobristSetup();
+                board = GameBoard();
+                ttMode = true;
+                if (ttType == AGE) {
+                    delete TT;
+                    TT = new AgedTT();
+                }
+                else if (ttType == DEPTH) {
+                    delete TT;
+                    TT = new DepthTT();
+                }
+                else {
+                    delete TT;
+                    TT = new MixedTT();
                 }
             }
             else if (input == "quit") break;
@@ -743,7 +764,7 @@
         updateTTmode();
         if (board.ply50MoveRule == 0) {
             if (MixedTT* mixed = dynamic_cast<MixedTT*>(TT)) {
-                mixed->lastIrreversible = board.positionHistory.size();
+                mixed->lastIrreversible = board.moveHistory.size();
                 //std::cout << "last irreversible updated\n";
             }
         }
