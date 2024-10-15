@@ -7,7 +7,7 @@ Sets up the position to the specified one provided in FEN notation as the argume
 ### go
 Searches for the best move and position evaluation. The search goes either up to the depth of 12 plies, or 10 seconds, whichever is reached first. All the evaluation is calculated in centi-pawns (devide by 100 to get a commonly used format).
 ### go time [arg]
-Searches exactly up to the specified time in argument. Although the time is measured in seconds here you can you enter a double value.
+Searches exactly up to the specified time in seconds (but you can enter a double value).
 ### go depth [arg]
 Searches up to the specified depth.
 ### quit
