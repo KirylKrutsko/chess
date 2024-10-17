@@ -15,7 +15,6 @@
     Engine::Engine(GameBoard& b) : board(b) {
         useTimer = true;
         timebreak = false;
-        maxDepthDefault = 12;
         ttMode = true;
         TT = new MixedTT();
         ttType = MIXED;
@@ -495,12 +494,27 @@
             }
             else if (input.find("go depth ") == 0) {
                 input = input.substr(9);
-                if (!std::all_of(input.begin(), input.end(), ::isdigit)) std::cout << "depth wrong\n";
+                int depth;
+                try {
+                    depth = std::stoi(input);
+                    if (depth < 1) {
+                        std::cout << "argument out of bounds\n";
+                        continue;
+                    }
+                }
+                catch (std::invalid_argument e) {
+                    std::cout << "invalid argument format\n";
+                    continue;
+                }
+                catch (std::out_of_range e) {
+                    std::cout << "argument out of bounds\n";
+                    continue;
+                }
                 uint64_t n, tt;
                 double t;
                 int d;
                 useTimer = false;
-                result = iterativeDeepening(std::stoi(input), n, tt, t, d);
+                result = iterativeDeepening(depth, n, tt, t, d);
                 std::cout << "nodes : " << n << "\nttHit : " << tt << "\ntime : " << t << "\ndepth : " << d << "\n";
                 if (!result.bestLine.empty()) std::cout << "bestmove " << notation_from_move(result.bestLine[result.bestLine.size() - 1]) << "\n";
                 else endGame();
@@ -508,15 +522,21 @@
             }
             else if (input.find("go time ") == 0) {
                 input = input.substr(8);
+                double time;
                 try {
-                    timer.timeLimit = std::stod(input);
+                    time = std::stod(input);
+                    if (time <= 0) {
+                        std::cout << "argument out of bounds\n";
+                        continue;
+                    }
+                    timer.timeLimit = time;
                 }
                 catch (std::invalid_argument& e) {
-                    std::cout << "time wrong\n";
+                    std::cout << "invalid argument format\n";
                     continue;
                 }
                 catch (std::out_of_range& e) {
-                    std::cout << "time wrong\n";
+                    std::cout << "argument out of bounds\n";
                     continue;
                 }
                 useTimer = true;
@@ -527,6 +547,7 @@
                 std::cout << "nodes : " << n << "\nttHit : " << tt << "\ntime : " << t << "\ndepth : " << d << "\n";
                 if (!result.bestLine.empty()) std::cout << "bestmove " << notation_from_move(result.bestLine[result.bestLine.size() - 1]) << "\n";
                 else endGame();
+                timer.timeLimit = timer.timeLimitDefault;
             }
             else if (input.find("go perft ") == 0) {
                 input = input.substr(9);
@@ -633,33 +654,44 @@
             }
             else if (input.find("play ") == 0){
                 input = input.substr(5);
+                double time = 0;
+                int depth = 0;
                 if (input.find("time ") == 0) {
                     input = input.substr(5);
                     try {
-                        timer.timeLimit = std::stod(input);
+                        time = std::stod(input);
+                        if (time <= 0) {
+                            std::cout << "argument out of bounds\n";
+                            continue;
+                        }
+                        timer.timeLimit = time;
                         useTimer = true;
                     }
                     catch (std::invalid_argument& e) {
-                        std::cout << "time wrong\n";
+                        std::cout << "invalid argument format\n";
                         continue;
                     }
                     catch (std::out_of_range& e) {
-                        std::cout << "time wrong\n";
+                        std::cout << "argument out of bounds\n";
                         continue;
                     }
                 }
                 else if(input.find("depth ")==0) {
                     input = input.substr(6);
                     try {
-                        maxDepthDefault = std::stoi(input);
+                        depth = std::stoi(input);
+                        if (depth < 1) {
+                            std::cout << "argument out of bounds\n";
+                            continue;
+                        }
                         useTimer = false;
                     }
                     catch (std::invalid_argument& e) {
-                        std::cout << "time wrong\n";
+                        std::cout << "invalid argument format\n";
                         continue;
                     }
                     catch (std::out_of_range& e) {
-                        std::cout << "time wrong\n";
+                        std::cout << "argument out of bounds\n";
                         continue;
                     }
                 }
@@ -670,7 +702,7 @@
                 uint64_t n, tt;
                 double t;
                 int d;
-                result = iterativeDeepening(maxDepthDefault, n, tt, t, d);
+                result = iterativeDeepening(depth, n, tt, t, d);
                 if (!result.bestLine.empty()) {
                     currentMove = result.bestLine[result.bestLine.size() - 1];
                     std::cout << "bestmove " << notation_from_move(currentMove) << "\n";
@@ -705,6 +737,8 @@
                     }
                 }
                 else endGame();
+                timer.timeLimit = timer.timeLimitDefault;
+                useTimer = true;
             }
             else if (input == "uci") {
                 std::cout << "id name kk.ab\n";
@@ -734,6 +768,12 @@
                 else {
                     std::cout << "unknown tt policy\n";
                 }
+            }
+            else if (input == "tt on") {
+                ttMode = true;
+            }
+            else if (input == "tt off") {
+                ttMode = true;
             }
             else if (input == "reset") {
                 ZobristSetup();

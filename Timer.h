@@ -5,6 +5,7 @@
 
 struct Timer
 {
+	double timeLimitDefault = 10;
 	double timeLimit; // seconds
 	std::chrono::steady_clock::time_point startPoint;
 	double startTime;

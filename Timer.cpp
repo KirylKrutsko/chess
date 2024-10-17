@@ -3,7 +3,7 @@
 #include <stdexcept>
 
 Timer::Timer() {
-	timeLimit = 5;
+	timeLimit = timeLimitDefault;
 }
 
 void Timer::start() {

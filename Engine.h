@@ -317,7 +317,7 @@ struct Engine
 {
 	Engine(GameBoard& b);
 	GameBoard board;
-    int maxDepthDefault;
+    const int maxDepthDefault = 12;
     TranspositionTable* TT;
     bool ttMode; // if false - disallows TT access. used to prevent 3 fold repetition and 50 move rule draws
     TTType ttType;
