@@ -74,7 +74,7 @@ void TTCollection::store(uint64_t key, SearchResult result, EntryType type, int 
  	worse->store(key, result, type, depth, ageOnStarted, ageCurrent, subtreeSize, irreversibleNumCurrent);
 	worseEnd = worse->overriten + worse->stored;
 	if ((betterEnd - betterStart) < (worseEnd - worseStart)) {
-		std::cout << "unexpected store tt result\t better " << (betterEnd - betterStart) << ", worse " << (worseEnd - worseStart) << "\n";
+		//std::cout << "unexpected store tt result\t better " << (betterEnd - betterStart) << ", worse " << (worseEnd - worseStart) << "\n";
 	}
 }
 
@@ -83,7 +83,7 @@ bool TTCollection::retrieve(uint64_t key, TTEntry& entry, bool retrieveOnlyExact
 	bool worseSucc = worse->retrieve(key, worseEntry, retrieveOnlyExact);
 	bool betterSucc = better->retrieve(key, betterEntry, retrieveOnlyExact);
 	if (worseSucc && !betterSucc) {
-		std::cout << "unexpected tt retrieve result" << "\n";
+		//std::cout << "unexpected tt retrieve result" << "\n";
 		worseRetrieve++;
 		entry = worseEntry;
 		return true;
