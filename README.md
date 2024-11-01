@@ -9,9 +9,9 @@ Sets the specified position and plays the moves specified in the seconds argumen
 ### go
 Searches for the best move and position evaluation. The search goes either up to the depth of 12 plies, or 10 seconds, whichever is reached first. All the evaluation is calculated in centi-pawns (devide by 100 to get a commonly used format).
 ### go time [arg]
-Searches exactly up to the specified time in seconds (but you can enter a double value).
+Searches exactly up to the specified time in seconds. Argument should be a positive double.
 ### go depth [arg]
-Searches up to the specified depth.
+Searches up to the specified depth. Argument should be a positive integer.
 ### quit
 Finishes the program.
 ## Non standard commands supported
