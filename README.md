@@ -5,7 +5,7 @@ Its overall strength is equivalent to approximately 2000 rapid on lichess, altho
 ### position fen [arg]
 Sets up the position to the specified one provided in FEN notation as the argument. Note that FEN string should include all additional fields, like catsle rights, en passant target and movecounts. Use "position startpos" command to reset position to the inititial one.
 ### position fen [arg] moves [args]
-Sets the specified position and plays the moves specified in the seconds argument. All moves should be separated by space and follow UCI notation like e2e4, e1g1 (for castling), d7d8q (for promotion). If at least one move is wrong the whole command won't be executed.
+Sets the specified position and plays the moves specified in the seconds argument. All moves should be separated by space and follow UCI notation like e2e4, e1g1 (for castling), d7d8q (for promotion). If one of the moves is wrong the command plays all moves up to it.
 ### go
 Searches for the best move and position evaluation. The search goes either up to the depth of 12 plies, or 10 seconds, whichever is reached first. All the evaluation is calculated in centi-pawns (devide by 100 to get a commonly used format).
 ### go time [arg]
