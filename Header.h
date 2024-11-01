@@ -10,6 +10,10 @@ enum EntryType : uint8_t {
     EXACT, LOWER, UPPER
 };
 
+enum TTType {
+    DEPTH, AGE, SIZE, DEPTH_LAST, DEPTH_NUM, SIZE_LAST, SIZE_NUM, COLLECTION
+};
+
 typedef uint64_t Bitboard;
 
 const Bitboard bit = 0x1ULL;

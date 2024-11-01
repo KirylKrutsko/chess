@@ -309,10 +309,6 @@ constexpr std::array<int, 7> endgameValues = {
     0, 3, 3, 5, 9, 0, 0
 };
 
-enum TTType {
-    MIXED, DEPTH, AGE
-};
-
 struct Engine
 {
 	Engine(GameBoard& b);
@@ -364,5 +360,6 @@ struct Engine
     void out(Bitboard bb);
 
     void makeMove(Move &m);
+    void unmakeMove();
 };
 

@@ -2,9 +2,14 @@
 #include "Tables.h"
 #include "TTEntry.h"
 #include "GameBoard.h"
-#include "DepthTT.h"
 #include "AgedTT.h"
-#include "MixedTT.h"
+#include "DepthTT.h"
+#include "DepthLastTT.h"
+#include "DepthNumTT.h"
+#include "SizeTT.h"
+#include "SizeLastTT.h"
+#include "SizeNumTT.h"
+#include "TTCollection.h"
 #include<iostream>
 #include<vector>
 #include<algorithm>
@@ -16,8 +21,8 @@
         useTimer = true;
         timebreak = false;
         ttMode = true;
-        TT = new MixedTT();
-        ttType = MIXED;
+        TT = new SizeLastTT();
+        ttType = SIZE_LAST;
     }
 
     SearchResult Engine::searchWithoutTT(int depth, int alpha, int beta, uint64_t& nodesSearched, uint64_t& ttHit) {
@@ -95,6 +100,7 @@
         }
 
         nodesSearched++;
+        uint64_t nodesBeforeSearch = nodesSearched;
 
         if (!ttMode){
             if (board.isRepetition() || board.ply50MoveRule >= 100) {
@@ -188,7 +194,7 @@
             }
         }
 
-        if (!timebreak) TT->store(key, bestResult, type, depth, movesOnSearchStarted, board.moveHistory.size());
+        if (!timebreak) TT->store(key, bestResult, type, depth, movesOnSearchStarted, board.moveHistory.size(), nodesSearched - nodesBeforeSearch, board.irreversibleNumber);
         return bestResult;
     }
 
@@ -288,47 +294,6 @@
         }
         return bestResult;
     }
-
-//    SearchResult Engine::bestOnDepth(std::vector<Move>& moves, uint64_t key, int depth, long& nodesOnDepth, long& movesOnDepth, int& positionOnDepth) {
-//        orderMoves(moves, key);
-//        std::vector<Move> bestLine, moveLine;
-//        int moveEval;
-//        if (board.turn) {
-//            bestEval = std::numeric_limits<int>::min();
-//            for (Move& move : moves) {
-//                moveLine.clear();
-//                board.doMove(move);
-//                moveEval = search(moveLine, depth - 1, bestEval, std::numeric_limits<int>::max(), nodesOnDepth, movesOnDepth, positionOnDepth);
-//                board.undoMove(move);
-//                if (moveEval > bestEval) {
-//                    bestEval = moveEval;
-//                    bestLine = moveLine;
-//                    bestLine.push_back(move);
-//                }
-//            }
-//        }
-//        else {
-//            bestEval = std::numeric_limits<int>::max();
-//            for (Move& move : moves) {
-//                board.doMove(move);
-//                moveEval = search(moveLine, depth - 1, std::numeric_limits<int>::min(), bestEval, nodesOnDepth, movesOnDepth, positionOnDepth);
-//                board.undoMove(move);
-//                if (moveEval < bestEval) {
-//                    bestEval = moveEval;
-//                    bestLine = moveLine;
-//                    bestLine.push_back(move);
-//                }
-//            }
-//        }
-//        /*std::vector<Move> be;
-//        int eval = searchWithoutTT(be, depth, std::numeric_limits<int>::min(), std::numeric_limits<int>::max());
-//        if (eval != bestEval) {
-//            std::cout << eval << "\t!= best :\t" << bestEval << "\n";
-//        }*/
-//        //TT->insert(key, board.reserveKey(), depth, bestEval, EXACT, bestLine[bestLine.size() - 1]);
-//        return bestLine;
-//    }
-//
 
     SearchResult Engine::iterativeDeepening(int maxDepth, uint64_t& nodesSearched, uint64_t& ttHit, double& time, int& depthSearched) {
         nodesSearched = 0;
@@ -577,7 +542,7 @@
             else if (input == "evaluate") {
                 printEval(evaluate());
             }
-            else if (input.find("move ") != std::string::npos) {
+            else if (input.find("move ") == 0) {
                 legalMoves = board.allMoves();
                 if (!validateMove(currentMove, input.substr(input.find("move ") + 5))) {
                     std::cout << "move invalid\n";
@@ -604,23 +569,76 @@
                 std::cout << "TT : time = " << timer.runtime() << ", nodes = " << n << ", hit = " << tt << "\n";
                 printEval(eval2.eval);
             }
-            else if (input == "self") {
+            else if (input.find("self ") == 0) {
+                input = input.substr(5);
+                double time = 0;
+                int depth = 100;
+                if (input.find("time ") == 0) {
+                    input = input.substr(5);
+                    try {
+                        time = std::stod(input);
+                        if (time <= 0) {
+                            std::cout << "argument out of bounds\n";
+                            continue;
+                        }
+                        timer.timeLimit = time;
+                        useTimer = true;
+                    }
+                    catch (std::invalid_argument& e) {
+                        std::cout << "invalid argument format\n";
+                        continue;
+                    }
+                    catch (std::out_of_range& e) {
+                        std::cout << "argument out of bounds\n";
+                        continue;
+                    }
+                }
+                else if (input.find("depth ") == 0) {
+                    input = input.substr(6);
+                    try {
+                        depth = std::stoi(input);
+                        if (depth < 1) {
+                            std::cout << "argument out of bounds\n";
+                            continue;
+                        }
+                        useTimer = false;
+                    }
+                    catch (std::invalid_argument& e) {
+                        std::cout << "invalid argument format\n";
+                        continue;
+                    }
+                    catch (std::out_of_range& e) {
+                        std::cout << "argument out of bounds\n";
+                        continue;
+                    }
+                }
+                else {
+                    std::cout << "wrong command format\n";
+                    continue;
+                }
                 while (true) {
                     uint64_t n, tt;
                     double t;
                     int d;
-                    result = iterativeDeepening(maxDepthDefault, n, tt, t,d);
+                    result = iterativeDeepening(depth, n, tt, t,d);
                     if (result.bestLine.empty()) {
                         endGame();
                         break;
                     }
                     currentMove = result.bestLine[result.bestLine.size() - 1];
                     std::cout << notation_from_move(currentMove) << "\n\n";
+                    //board.printBoard();
                     makeMove(currentMove);
                 }
             }
             else if (input == "show best line") {
                 showBestLine(result.bestLine);
+            }
+            else if (input == "show move history") {
+                std::cout << board.moveHistory.size() << "\n";
+                for (int i = 0; i < board.moveHistory.size();i++) {
+                    std::cout << i << " " << notation_from_move(board.moveHistory[i]) << "\n";
+                }
             }
             else if (input == "TT lookup") {
                 uint64_t key = board.computeZobristKey();
@@ -631,7 +649,7 @@
                 else std::cout << "not found\n";
             }
             else if (input == "undo move") {
-                board.undoMove(board.moveHistory[board.moveHistory.size() - 1]);
+                unmakeMove();
             }
             else if (input == "key") {
                 std::cout << board.computeZobristKey() << "\n";
@@ -650,12 +668,13 @@
                 std::cout << board.computeFEN() << "\n";
             }
             else if (input == "tt stats") {
-                std::cout << "stored " << TT->stored << " retrieved " << TT->retrieved << " not_retrieved " << TT->not_retrieved << " overwriten " << TT->overriten << " overwriten_with_new " << TT->overwritenWithDiff << " refused " << TT->refused << "\n";
+                if (TTCollection* coll = dynamic_cast<TTCollection*>(TT)) std::cout << "better : " << coll->betterRetrieve << " worse : " << coll->worseRetrieve << " equal : " << coll->equal << "\n";
+                else std::cout << "stored " << TT->stored << " retrieved " << TT->retrieved << " not_retrieved " << TT->not_retrieved << " overwriten " << TT->overriten << " overwriten_with_new " << TT->overwritenWithDiff << " refused " << TT->refused << "\n";
             }
             else if (input.find("play ") == 0){
                 input = input.substr(5);
                 double time = 0;
-                int depth = 0;
+                int depth = 100;
                 if (input.find("time ") == 0) {
                     input = input.substr(5);
                     try {
@@ -699,6 +718,7 @@
                     std::cout << "wrong command format\n";
                     continue;
                 }
+                bool printFromWhite = !board.turn;
                 uint64_t n, tt;
                 double t;
                 int d;
@@ -707,7 +727,7 @@
                     currentMove = result.bestLine[result.bestLine.size() - 1];
                     std::cout << "bestmove " << notation_from_move(currentMove) << "\n";
                     makeMove(currentMove);
-                    board.printBoard();
+                    board.smartPrint(printFromWhite);
                     while (true) {
                         std::cin >> input;
                         if (input == "exit") break;
@@ -720,14 +740,14 @@
                         }
                         else {
                             makeMove(currentMove);
-                            board.printBoard();
+                            board.smartPrint(printFromWhite);
                             int d;
-                            result = iterativeDeepening(maxDepthDefault, n, tt, t, d);
+                            result = iterativeDeepening(depth, n, tt, t, d);
                             if (!result.bestLine.empty()) {
                                 currentMove = result.bestLine[result.bestLine.size() - 1];
                                 std::cout << "bestmove " << notation_from_move(currentMove) << "\n";
                                 makeMove(currentMove);
-                                board.printBoard();
+                                board.smartPrint(printFromWhite);
                             }
                             else {
                                 endGame();
@@ -760,10 +780,62 @@
                     TT = new DepthTT();
                     ttType = DEPTH;
                 }
-                else if (input == "mixed") {
+                else if (input == "depth_last") {
                     delete TT;
-                    TT = new MixedTT();
-                    ttType = MIXED;
+                    TT = new DepthLastTT();
+                    ttType = DEPTH_LAST;
+                }
+                else if (input == "depth_num") {
+                    delete TT;
+                    TT = new DepthNumTT();
+                    ttType = DEPTH_NUM;
+                }
+                else if (input == "size") {
+                    delete TT;
+                    TT = new SizeTT();
+                    ttType = SIZE;
+                }
+                else if (input == "size_last") {
+                    delete TT;
+                    TT = new SizeLastTT();
+                    ttType = SIZE_LAST;
+                }
+                else if (input == "size_num") {
+                    delete TT;
+                    TT = new SizeNumTT();
+                    ttType = SIZE_NUM;
+                }
+                else if (input == "compare") {
+                    TTType better, worse;
+                    std::cout << "better : ";
+                    std::cin >> input;
+                    if (input == "age") better = AGE;
+                    else if (input == "depth") better = DEPTH;
+                    else if (input == "depth_last") better = DEPTH_LAST;
+                    else if (input == "depth_num") better = DEPTH_NUM;
+                    else if (input == "size") better = SIZE;
+                    else if (input == "size_last") better = SIZE_LAST;
+                    else if (input == "size_num") better = SIZE_NUM;
+                    else {
+                        std::cout << "unknown tt policy\n";
+                        continue;
+                    }
+                    std::cout << "worse : ";
+                    std::cin >> input;
+                    if (input == "age") worse = AGE;
+                    else if (input == "depth") worse = DEPTH;
+                    else if (input == "depth_last") worse = DEPTH_LAST;
+                    else if (input == "depth_num") worse = DEPTH_NUM;
+                    else if (input == "size") worse = SIZE;
+                    else if (input == "size_last") worse = SIZE_LAST;
+                    else if (input == "size_num") worse = SIZE_NUM;
+                    else {
+                        std::cout << "unknown tt policy\n";
+                        continue;
+                    }
+                    delete TT;
+                    TT = new TTCollection(better, worse);
+                    ttType = COLLECTION;
                 }
                 else {
                     std::cout << "unknown tt policy\n";
@@ -779,17 +851,36 @@
                 ZobristSetup();
                 board = GameBoard();
                 ttMode = true;
-                if (ttType == AGE) {
-                    delete TT;
+                if (ttType == COLLECTION) {
+                    std::cout << "cannot reset collection tt\n";
+                    continue;
+                }
+                delete TT;
+                switch (ttType)
+                {
+                case AGE:
                     TT = new AgedTT();
-                }
-                else if (ttType == DEPTH) {
-                    delete TT;
+                    break;
+                case DEPTH:
                     TT = new DepthTT();
-                }
-                else {
-                    delete TT;
-                    TT = new MixedTT();
+                    break;
+                case DEPTH_LAST:
+                    TT = new DepthLastTT();
+                    break;
+                case DEPTH_NUM:
+                    TT = new DepthNumTT();
+                    break;
+                case SIZE:
+                    TT = new SizeTT();
+                    break;
+                case SIZE_LAST:
+                    TT = new SizeLastTT();
+                    break;
+                case SIZE_NUM:
+                    TT = new SizeNumTT();
+                    break;
+                default:
+                    break;
                 }
             }
             else if (input == "quit") break;
@@ -803,11 +894,15 @@
         board.doMove(m);
         updateTTmode();
         if (board.ply50MoveRule == 0) {
-            if (MixedTT* mixed = dynamic_cast<MixedTT*>(TT)) {
-                mixed->lastIrreversible = board.moveHistory.size();
-                //std::cout << "last irreversible updated\n";
-            }
+            TT->updateNum(board.irreversibleNumber);
+            TT->updateLast(board.moveHistory.size());
         }
+    }
+
+    void Engine::unmakeMove() {
+        board.undoMove(board.moveHistory[board.moveHistory.size() - 1]);
+        TT->updateNum(board.irreversibleNumber);
+        TT->updateLast(board.moveHistory.size());
     }
 
     bool Engine::validateMove(Move& m, std::string input) {

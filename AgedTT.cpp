@@ -3,14 +3,14 @@
 #include "TranspositionTable.h"
 #include<array>
 
-void AgedTT::store(uint64_t key, SearchResult result, EntryType type, int depth, int ageOnStarted, int ageCurrent) {
+void AgedTT::store(uint64_t key, SearchResult result, EntryType type, int depth, int ageOnStarted, int ageCurrent, uint64_t subtreeSize, int irreversibleNum) {
     if (result.eval > 30000 || result.eval < -30000) return;
 
     //size_t index = key % TTsize;
     size_t index = key & (TTsize - 1);
-    AgedTTEntry& entry = table[index];
+    ExtTTEntry& entry = table[index];
 
-    if ((entry.key == 0 || entry.age <= ageOnStarted) && !result.bestLine.empty()) {
+    if ((entry.key == 0 || entry.ext <= ageOnStarted) && !result.bestLine.empty()) {
         if (entry.key == 0) stored++;
         else {
             overriten++;
@@ -20,7 +20,7 @@ void AgedTT::store(uint64_t key, SearchResult result, EntryType type, int depth,
         entry.depth = depth;
         entry.eval = result.eval;
         entry.type = type;
-        entry.age = ageOnStarted;
+        entry.ext = ageOnStarted;
         entry.bestMove = result.bestLine[result.bestLine.size() - 1];
     }
     else {
@@ -32,7 +32,7 @@ bool AgedTT::retrieve(uint64_t key, TTEntry& entry, bool retrieveOnlyExact) {
     //return false;
     //size_t index = key % TTsize;
     size_t index = key & (TTsize - 1);
-    const AgedTTEntry& storedEntry = table[index];
+    const TTEntry& storedEntry = table[index];
 
     if (storedEntry.key == key && (!retrieveOnlyExact || storedEntry.type == EXACT)) {
         retrieved++;

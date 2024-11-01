@@ -10,6 +10,7 @@
 
     GameBoard::GameBoard() {
         setFromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        irreversibleNumber = 0;
     }
 
     bool GameBoard::setFromFen(const std::string& FEN) {
@@ -358,44 +359,6 @@
         return ((bit << index - 7) & not_aFile) | ((bit << index - 9) & not_hFile);
     }
 
-    // determines whether white/black king is in discovered check after moving a piece from index
-    /*unsigned long wDiscovedFrom(unsigned long moved) {
-        if(!((bit << moved) & (whiteKingBishopMoves | whiteKingRookMoves))) return 64;
-        unsigned char result;
-        unsigned long result_index;
-        Bitboard currentChecks = (RookMagicBitboards[wKingPos][(occupied & RawRookAttacks[wKingPos]) * RookMagics[wKingPos] >> RookShifts[wKingPos]]) & (blacks[ROOK] | blacks[QUEEN]);
-        while (currentChecks) {
-            result = _BitScanForward64(&result_index, currentChecks);
-            if (result && result_index != checkedFrom) return result_index;
-            currentChecks &= currentChecks - 1;
-        }
-        currentChecks = (BishopMagicBitboards[wKingPos][(occupied & RawBishopAttacks[wKingPos]) * BishopMagics[wKingPos] >> BishopShifts[wKingPos]]) & (blacks[BISHOP] | blacks[QUEEN]);
-        while (currentChecks) {
-            result = _BitScanForward64(&result_index, currentChecks);
-            if (result && result_index != checkedFrom) return result_index;
-            currentChecks &= currentChecks - 1;
-        }
-        return 64;
-    }
-    unsigned long bDiscovedFrom(unsigned long moved) {
-        if(!((bit << moved) & (blackKingBishopMoves | blackKingRookMoves))) return 64;
-        unsigned char result;
-        unsigned long result_index;
-        Bitboard currentChecks = (RookMagicBitboards[bKingPos][(occupied & RawRookAttacks[bKingPos]) * RookMagics[bKingPos] >> RookShifts[bKingPos]]) & (whites[ROOK] | whites[QUEEN]);
-        while (currentChecks) {
-            result = _BitScanForward64(&result_index, currentChecks);
-            if (result && result_index != checkedFrom) return result_index;
-            currentChecks &= currentChecks - 1;
-        }
-        currentChecks = (BishopMagicBitboards[bKingPos][(occupied & RawBishopAttacks[bKingPos]) * BishopMagics[bKingPos] >> BishopShifts[bKingPos]]) & (whites[BISHOP] | whites[QUEEN]);
-        while (currentChecks) {
-            result = _BitScanForward64(&result_index, currentChecks);
-            if (result && result_index != checkedFrom) return result_index;
-            currentChecks &= currentChecks - 1;
-        }
-        return 64;
-    }
-*/
     Bitboard GameBoard::wDiscoveredFrom(unsigned long moved) {
         if (!((bit << moved) & (whiteKingBishopMoves | whiteKingRookMoves))) return 0x0ULL;
         return (((RookMagicBitboards[wKingPos][(occupied & RawRookAttacks[wKingPos]) * RookMagics[wKingPos] >> RookShifts[wKingPos]]) & (blacks[ROOK] | blacks[QUEEN]))
@@ -463,6 +426,62 @@
         }
         std::string move = turn ? "White to move" : "Black to move";
         std::cout << move << std::endl;
+    }
+    void GameBoard::printBoardFromBlack() const {
+        std::cout << "\n";
+        for (int r = 0; r < 8; r++) {
+            std::cout << r + 1 << "\t";  
+            for (int c = 7; c >= 0; c--) {
+                if (whitePieceArray[r * 8 + c] != EMPTY) {
+                    switch (whitePieceArray[r * 8 + c]) {
+                    case PAWN: std::cout << "P"; break;
+                    case KNIGHT: std::cout << "N"; break;
+                    case BISHOP: std::cout << "B"; break;
+                    case ROOK: std::cout << "R"; break;
+                    case QUEEN: std::cout << "Q"; break;
+                    case KING: std::cout << "K"; break;
+                    default: break;
+                    }
+                }
+                if (blackPieceArray[r * 8 + c] != EMPTY) {
+                    switch (blackPieceArray[r * 8 + c]) {
+                    case PAWN: std::cout << "p"; break;
+                    case KNIGHT: std::cout << "n"; break;
+                    case BISHOP: std::cout << "b"; break;
+                    case ROOK: std::cout << "r"; break;
+                    case QUEEN: std::cout << "q"; break;
+                    case KING: std::cout << "k"; break;
+                    default: break;
+                    }
+                }
+                if (whitePieceArray[r * 8 + c] == EMPTY && blackPieceArray[r * 8 + c] == EMPTY) {
+                    std::cout << ".";
+                }
+                std::cout << "   ";
+            }
+            std::cout << "\n\n";
+        }
+
+        std::cout << "\n\th   g   f   e   d   c   b   a\n";
+
+        if (checksFrom) {
+            std::cout << "Checkers :";
+            Bitboard checks = checksFrom;
+            unsigned long lsb;
+            while (checks) {
+                _BitScanForward64(&lsb, checks);
+                checks &= checks - 1;
+                std::cout << " " << notation_from_index(lsb);
+            }
+            std::cout << "\n";
+        }
+
+        std::string move = turn ? "White to move" : "Black to move";
+        std::cout << move << std::endl;
+    }
+    void GameBoard::smartPrint(bool turn) const {
+        if (turn) printBoard();
+        else printBoardFromBlack();
     }
 
     uint64_t GameBoard::computeZobristKey() const {
@@ -1276,7 +1295,10 @@
         checksFrom = m.checks;
 
         if (turn) { // white move
-            if (whitePieceArray[m.start] == PAWN || m.capture != EMPTY) ply50MoveRule = 0;
+            if (whitePieceArray[m.start] == PAWN || m.capture != EMPTY) {
+                ply50MoveRule = 0;
+                irreversibleNumber++;
+            }
             else ply50MoveRule++;
 
             whitePieces &= ~(bit << m.start);
@@ -1362,7 +1384,10 @@
             whitePieceArray[m.start] = EMPTY;
         }
         else { // black move
-            if (blackPieceArray[m.start] == PAWN || m.capture != EMPTY) ply50MoveRule = 0;
+            if (blackPieceArray[m.start] == PAWN || m.capture != EMPTY) {
+                ply50MoveRule = 0;
+                irreversibleNumber++;
+            }
             else ply50MoveRule++;
 
             blackPieces &= ~(bit << m.start);
@@ -1560,6 +1585,7 @@
         // restore "last" properties
         inDoubleCheck = m.lastInDoubleCheck;
         checksFrom = m.lastCheckedFrom;
+        if (ply50MoveRule == 0) irreversibleNumber--;
         ply50MoveRule = m.lastPly50;
         if (m.lastEnPassantTargetIndex == 64) {
             enPassantTarget = 0x0ULL;

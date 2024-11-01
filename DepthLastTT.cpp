@@ -1,13 +1,13 @@
-#include "DepthTT.h"
+#include "DepthLastTT.h"
 
-void DepthTT::store(uint64_t key, SearchResult result, EntryType type, int depth, int ageOnStarted, int ageCurrent, uint64_t subtreeSize, int irreversibleNum) {
+void DepthLastTT::store(uint64_t key, SearchResult result, EntryType type, int depth, int ageOnStarted, int ageCurrent, uint64_t subtreeSize, int irreversibleNumCurrent) {
     if (result.eval > 30000 || result.eval < -30000) return;
 
     //size_t index = key % TTsize;
     size_t index = key & (TTsize - 1);
-    TTEntry& entry = table[index];
+    ExtTTEntry& entry = table[index];
 
-    if ((entry.key == 0 || entry.depth <= depth) && !result.bestLine.empty()) {
+    if ((entry.key == 0 || entry.ext < lastIrreversible || entry.depth <= depth) && !result.bestLine.empty()) {
         if (entry.key == 0) stored++;
         else {
             overriten++;
@@ -17,6 +17,7 @@ void DepthTT::store(uint64_t key, SearchResult result, EntryType type, int depth
         entry.depth = depth;
         entry.eval = result.eval;
         entry.type = type;
+        entry.ext = ageCurrent;
         entry.bestMove = result.bestLine[result.bestLine.size() - 1];
     }
     else {
@@ -24,7 +25,7 @@ void DepthTT::store(uint64_t key, SearchResult result, EntryType type, int depth
     }
 }
 
-bool DepthTT::retrieve(uint64_t key, TTEntry& entry, bool retrieveOnlyExact) {
+bool DepthLastTT::retrieve(uint64_t key, TTEntry& entry, bool retrieveOnlyExact) {
     //size_t index = key % TTsize;
     size_t index = key & (TTsize - 1);
     const TTEntry& storedEntry = table[index];
