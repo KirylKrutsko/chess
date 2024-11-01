@@ -42,4 +42,5 @@ Transposition table is implemented and is allowed to be switched off or change t
 Supported policy types are : "age" (prefer newest entry), "depth" (prefer deepest entry), "size" (prefer entry with larger subtree). Both depth and size policies have "last" and "num" extensions (write a policy in form "size_num" to turn them on). <br>
 "Last" extension introduces extra condition to override an entry if its distance in plies from the start of the game is less than the one of the last irreversible move. It essentially assumes that position saved before the last irreversible is almost always unreachable (which is not exactly true, but usually happens only a few times during the game). <br>
 "Num" extension introduces extra condition to override an entry if the number of irreversible moves played to reach it since the start of the game is lower than that number for the current board state. It relies on the fact that the number of irreversible move can only increase and thus this position cannot be reached. <br>
-TT also allows "compare" policy which is essentially a two-tier policy (holds two entries per each TT index for two different policies).
+TT also allows "compare" policy which is essentially a two-tier policy (holds two entries per each TT index for two different policies). <br>
+By default the policy is size_num.
